@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#123b32" />
+    <title>客户 CRM · ScentedLand</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div>
+            <p class="eyebrow">SCENTEDLAND · LOCAL CRM</p>
+            <h1>客户关系看板</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div id="health-status" class="health-indicator" aria-live="polite">
+            <span class="health-dot" aria-hidden="true"></span>
+            <span>正在检查服务</span>
+          </div>
+          <button id="add-client-btn" class="button button-primary" type="button">
+            <span aria-hidden="true">＋</span> 新增客户
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="page-heading">
+          <div>
+            <p class="eyebrow eyebrow-amber">客户 · 线索 · 下一步</p>
+            <h2 id="page-heading">把每一次跟进，留在正确的下一步。</h2>
+            <p class="hero-copy">从 Markdown 客户档案、索引与 pipeline 汇总而来。资料只保存在本机，改动会同步回原有文件。</p>
+          </div>
+          <div class="hero-note" aria-label="数据来源说明">
+            <span class="hero-note-icon" aria-hidden="true">✦</span>
+            <span><strong>本地数据源</strong><br />clients · leads/pipeline</span>
+          </div>
+        </section>
+
+        <section id="channel-tabs" class="channel-tabs" aria-label="客户板块">
+          <div class="channel-tab-list" role="tablist" aria-label="客户来源板块">
+            <button id="channel-alibaba" class="channel-tab" type="button" role="tab" data-channel="alibaba" aria-selected="false" aria-controls="client-grid">
+              <span class="channel-tab-name">阿里客户</span>
+              <strong id="count-alibaba" class="channel-count">—</strong>
+            </button>
+            <button id="channel-email" class="channel-tab is-active" type="button" role="tab" data-channel="email" aria-selected="true" aria-controls="client-grid">
+              <span class="channel-tab-name">邮件客户</span>
+              <strong id="count-email" class="channel-count">—</strong>
+            </button>
+          </div>
+          <a id="export-alibaba-btn" class="button button-quiet export-button" href="/api/clients/export.csv?channel=alibaba" download="alibaba-customers.csv" hidden>
+            <span aria-hidden="true">⇩</span> 导出 Alibaba CSV
+          </a>
+        </section>
+
+        <section id="stats" class="stats-grid" aria-label="客户统计">
+          <article class="stat-card stat-card-main">
+            <span class="stat-label">客户总数</span>
+            <strong id="stat-total" class="stat-value">—</strong>
+            <span class="stat-hint">索引、pipeline 与档案合并</span>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">A 级客户</span>
+            <strong id="stat-tier-a" class="stat-value">—</strong>
+            <span class="stat-hint">优先投入精力</span>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">活跃跟进</span>
+            <strong id="stat-active" class="stat-value">—</strong>
+            <span class="stat-hint">尚未关闭的客户</span>
+          </article>
+          <article class="stat-card stat-card-accent">
+            <span class="stat-label">待处理</span>
+            <strong id="stat-pending" class="stat-value">—</strong>
+            <span class="stat-hint">已有下一步行动</span>
+          </article>
+        </section>
+
+        <section class="toolbar" aria-label="客户筛选">
+          <div class="search-wrap">
+            <label class="sr-only" for="search-input">搜索客户</label>
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input id="search-input" type="search" autocomplete="off" placeholder="搜索公司、联系人、地区、产品兴趣…" />
+            <kbd class="search-shortcut" aria-hidden="true">/</kbd>
+          </div>
+          <div class="filter-row">
+            <label class="select-wrap">
+              <span class="sr-only">状态</span>
+              <select id="status-filter" aria-label="按状态筛选">
+                <option value="">全部状态</option>
+              </select>
+            </label>
+            <label class="select-wrap">
+              <span class="sr-only">等级</span>
+              <select id="tier-filter" aria-label="按等级筛选">
+                <option value="">全部等级</option>
+              </select>
+            </label>
+            <label class="select-wrap">
+              <span class="sr-only">市场</span>
+              <select id="market-filter" aria-label="按市场筛选">
+                <option value="">全部市场</option>
+              </select>
+            </label>
+            <label class="select-wrap">
+              <span class="sr-only">来源</span>
+              <select id="source-filter" aria-label="按来源筛选">
+                <option value="">全部来源</option>
+              </select>
+            </label>
+            <label class="select-wrap sort-select">
+              <span class="sr-only">排序</span>
+              <select id="sort-filter" aria-label="客户排序">
+                <option value="updated_desc">最近更新</option>
+                <option value="score_desc">分数从高到低</option>
+                <option value="score_asc">分数从低到高</option>
+                <option value="company_asc">公司名称 A-Z</option>
+              </select>
+            </label>
+            <button id="reset-filters" class="button button-quiet" type="button">重置筛选</button>
+          </div>
+        </section>
+
+        <section class="results-heading" aria-live="polite">
+          <div>
+            <h2>客户列表</h2>
+            <p id="result-count">正在读取客户…</p>
+          </div>
+          <button id="refresh-btn" class="button button-quiet button-refresh" type="button" title="重新读取数据">
+            <span aria-hidden="true">↻</span> 刷新
+          </button>
+        </section>
+
+        <section id="loading-state" class="card-grid loading-grid" aria-label="正在加载" hidden>
+          <div class="skeleton-card" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div class="skeleton-card" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div class="skeleton-card" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div class="skeleton-card" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+        </section>
+
+        <section id="error-state" class="state-panel error-panel" hidden aria-live="assertive">
+          <div class="state-icon" aria-hidden="true">!</div>
+          <h2>暂时读不到客户数据</h2>
+          <p id="error-message">请确认本地服务仍在运行，然后重试。</p>
+          <button id="retry-btn" class="button button-primary" type="button">重新加载</button>
+        </section>
+
+        <section id="empty-state" class="state-panel" hidden>
+          <div class="state-icon state-icon-soft" aria-hidden="true">⌁</div>
+          <h2 id="empty-title">还没有匹配的客户</h2>
+          <p id="empty-message">换个关键词或重置筛选，看看其他客户。</p>
+          <button id="empty-reset-btn" class="button button-quiet" type="button">清除筛选</button>
+        </section>
+
+        <section id="client-grid" class="card-grid" aria-label="客户卡片列表"></section>
+      </main>
+
+      <footer class="footer">
+        <span>数据以 ai-assistant/clients 与 leads/pipeline.md 为准</span>
+        <span>仅本机可用 · UTF-8</span>
+      </footer>
+    </div>
+
+    <dialog id="client-dialog" class="client-dialog" aria-labelledby="dialog-title">
+      <div class="dialog-frame">
+        <div class="dialog-header">
+          <div>
+            <p id="dialog-kicker" class="eyebrow eyebrow-amber">客户详情</p>
+            <h2 id="dialog-title">客户</h2>
+          </div>
+          <button id="dialog-close" class="icon-button" type="button" aria-label="关闭窗口">×</button>
+        </div>
+        <div id="detail-view" class="detail-view"></div>
+        <form id="edit-form" class="edit-form" novalidate hidden>
+          <div class="form-section-title">跟进更新</div>
+          <div class="form-grid form-grid-compact">
+            <label class="field">
+              <span>状态 <em>*</em></span>
+              <select id="edit-status" name="status" required></select>
+            </label>
+            <label class="field field-wide">
+              <span>下一步行动</span>
+              <input id="edit-next-action" name="next_action" maxlength="1200" placeholder="例如：周五跟进样品确认" />
+            </label>
+          </div>
+          <label class="field">
+            <span>备注</span>
+            <textarea id="edit-notes" name="notes" rows="5" maxlength="6000" placeholder="记录最新沟通、风险或判断…"></textarea>
+          </label>
+          <div class="form-actions">
+            <button id="edit-cancel" class="button button-quiet" type="button">取消</button>
+            <button class="button button-primary" type="submit">保存更新</button>
+          </div>
+        </form>
+        <div id="detail-actions" class="dialog-actions">
+          <button id="edit-client-btn" class="button button-primary" type="button">编辑跟进</button>
+          <button id="detail-close-btn" class="button button-quiet" type="button">关闭</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="add-dialog" class="client-dialog" aria-labelledby="add-dialog-title">
+      <div class="dialog-frame">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow eyebrow-amber">建立新档案</p>
+            <h2 id="add-dialog-title">新增客户</h2>
+          </div>
+          <button id="add-dialog-close" class="icon-button" type="button" aria-label="关闭窗口">×</button>
+        </div>
+        <p id="add-dialog-intro" class="dialog-intro">录入后会生成客户 Markdown，并同步索引与 pipeline。邮件客户需要公司名称，阿里客户可先留空。</p>
+        <form id="add-form" class="edit-form" novalidate>
+          <div class="form-section-title">基本资料</div>
+          <div class="form-grid">
+            <label class="field field-wide">
+              <span id="add-company-label">公司名称</span>
+              <input id="add-company" name="company" maxlength="200" placeholder="例如：Scent Studio Ltd" />
+            </label>
+            <label class="field">
+              <span>联系人</span>
+              <input name="contact_name" maxlength="160" placeholder="姓名或待确认" />
+            </label>
+            <label class="field">
+              <span>职位</span>
+              <input name="title" maxlength="120" placeholder="Founder / Purchasing" />
+            </label>
+            <label class="field">
+              <span>地区</span>
+              <input name="country_region" maxlength="240" placeholder="城市、国家或地区" />
+            </label>
+            <label class="field field-wide">
+              <span>地址</span>
+              <input name="address" maxlength="500" placeholder="收货地址、办公地址或寄样地址" />
+            </label>
+            <label class="field">
+              <span>市场</span>
+              <select name="market_bucket">
+                <option value="">待补充</option>
+                <option value="EU_US">EU_US</option>
+                <option value="SEA">SEA</option>
+                <option value="OTHER">OTHER</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>来源</span>
+              <select id="add-source" name="source">
+                <option value="">待补充</option>
+                <option value="alibaba">Alibaba</option>
+                <option value="linkedin">LinkedIn</option>
+                <option value="exhibition">展会</option>
+                <option value="website">官网</option>
+                <option value="referral">转介绍</option>
+                <option value="inbound">主动询盘</option>
+                <option value="web_search">Web search</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>渠道类型</span>
+              <input name="channel_type" maxlength="80" placeholder="brand / distributor / oem" />
+            </label>
+            <label class="field">
+              <span>邮箱</span>
+              <input name="known_email" type="email" maxlength="320" placeholder="name@company.com" />
+            </label>
+            <label class="field">
+              <span>电话</span>
+              <input name="known_phone" maxlength="120" placeholder="含国家区号更好" />
+            </label>
+            <label class="field field-wide">
+              <span>产品兴趣</span>
+              <input name="product_interest" maxlength="600" placeholder="例如：蜡烛、扩香、香水用 fragrance oils" />
+            </label>
+          </div>
+
+          <div id="product-parser-fields" class="product-parser-section" hidden>
+            <div class="form-section-title">Alibaba 产品信息</div>
+            <p class="field-help">粘贴客户原文后会自动给出拆分建议；你手动改过的字段不会被后续建议覆盖。</p>
+            <label class="field field-wide">
+              <span>产品原文</span>
+              <textarea id="add-product-raw" name="product_raw" rows="5" maxlength="10000" placeholder="例如：Product: Lavender fragrance oil; Qty: 100 kg; Application: soap; Target price: USD 8/kg"></textarea>
+              <small id="product-parse-status" class="field-status" role="status" aria-live="polite"></small>
+            </label>
+            <div class="form-grid product-split-grid">
+              <label class="field"><span>产品名称</span><input name="product_name" maxlength="240" placeholder="Product name" /></label>
+              <label class="field"><span>香型要求</span><input name="fragrance_requirement" maxlength="600" placeholder="Scent / fragrance requirement" /></label>
+              <label class="field"><span>产品用途</span><input name="product_application" maxlength="300" placeholder="Application / use" /></label>
+              <label class="field"><span>产品数量</span><input name="product_quantity" maxlength="160" placeholder="Qty / quantity" /></label>
+              <label class="field"><span>产品规格</span><input name="product_specification" maxlength="500" placeholder="Size / specification" /></label>
+              <label class="field"><span>目标价格</span><input name="target_price" maxlength="160" placeholder="Target price / budget" /></label>
+              <label class="field field-wide"><span>其他要求</span><textarea name="other_requirements" rows="3" maxlength="1200" placeholder="包装、合规或其他要求"></textarea></label>
+            </div>
+          </div>
+
+          <div class="form-section-title">跟进判断</div>
+          <div class="form-grid">
+            <label class="field">
+              <span>等级</span>
+              <select name="icp_tier">
+                <option value="C">C · 待观察</option>
+                <option value="B" selected>B · 正常跟进</option>
+                <option value="A">A · 优先跟进</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>分数</span>
+              <input name="icp_score" type="number" min="0" max="100" step="1" value="0" />
+            </label>
+            <label class="field">
+              <span>状态</span>
+              <select id="add-status" name="status"></select>
+            </label>
+            <label class="field field-wide">
+              <span>下一步行动</span>
+              <input name="next_action" maxlength="1200" placeholder="例如：确认采购负责人并发 Mail 1" />
+            </label>
+          </div>
+          <label class="field">
+            <span>备注</span>
+            <textarea name="notes" rows="5" maxlength="6000" placeholder="补充客户背景、需求、风险或来源说明…"></textarea>
+          </label>
+          <p id="add-form-error" class="form-error" role="alert" hidden></p>
+          <div class="form-actions">
+            <button id="add-cancel" class="button button-quiet" type="button">取消</button>
+            <button class="button button-primary" type="submit">创建客户档案</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
+    <div id="toast-region" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

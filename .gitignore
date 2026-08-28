@@ -1,0 +1,13 @@
+# Independent nested repository
+remotion/
+
+# Python and local runtime artifacts
+__pycache__/
+*.py[cod]
+
+# CRM runtime logs (keep the structured A2A handoff log)
+ai-assistant/crm-dashboard/logs/crm-dashboard.jsonl
+ai-assistant/crm-dashboard/logs/launcher.jsonl
+ai-assistant/crm-dashboard/logs/*.stdout.log
+ai-assistant/crm-dashboard/logs/*.stderr.log
+
