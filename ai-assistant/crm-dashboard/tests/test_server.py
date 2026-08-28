@@ -255,6 +255,161 @@ class MergeAndPersistenceTests(unittest.TestCase):
         self.assertEqual(continuous["target_price"], "USD 18/kg")
         self.assertEqual(continuous["product_application"], "perfume")
 
+    def test_bulk_product_parser_preserves_order_pairing_and_safety(self) -> None:
+        raw = """Internal code: 1001, 1002; Product name: Rose Oil, Jasmine Oil
+SL-003 | Vanilla Oil
+SL-004\tLavender Oil
+SL-005, Cedar Oil
+SL-006: Patchouli Oil
+SL-007 Neroli Oil
+Code: 008, Name: Ylang Oil
+SL-007 Neroli Oil
+SL-008\tCitrus Oil
+SL-009, Cedarwood Oil
+SL-010: Mint Oil
+SL-011 Ginger Oil
+SL-012 | Amber Oil
+Qty: 25kg for soap"""
+        parsed = server.parse_product_info(raw)
+        expected = [
+            {"code": "1001", "name": "Rose Oil"},
+            {"code": "1002", "name": "Jasmine Oil"},
+            {"code": "SL-003", "name": "Vanilla Oil"},
+            {"code": "SL-004", "name": "Lavender Oil"},
+            {"code": "SL-005", "name": "Cedar Oil"},
+            {"code": "SL-006", "name": "Patchouli Oil"},
+            {"code": "SL-007", "name": "Neroli Oil"},
+            {"code": "008", "name": "Ylang Oil"},
+            {"code": "SL-008", "name": "Citrus Oil"},
+            {"code": "SL-009", "name": "Cedarwood Oil"},
+            {"code": "SL-010", "name": "Mint Oil"},
+            {"code": "SL-011", "name": "Ginger Oil"},
+            {"code": "SL-012", "name": "Amber Oil"},
+        ]
+        self.assertEqual(parsed["product_items"], expected)
+        self.assertEqual(parsed["product_codes"], "\n".join(item["code"] for item in expected))
+        self.assertEqual(parsed["product_names"], "\n".join(item["name"] for item in expected))
+        self.assertEqual(parsed["product_name"], "Rose Oil")
+        self.assertNotIn("25kg", parsed["product_codes"])
+
+    def test_bulk_product_parser_supports_continuous_labels_numeric_codes_and_missing_side(self) -> None:
+        labeled = server.parse_product_info("Product code SL-001, Product name Rose; Product code SL-002, Product name Jasmine")
+        self.assertEqual(labeled["product_items"], [{"code": "SL-001", "name": "Rose"}, {"code": "SL-002", "name": "Jasmine"}])
+        numeric = server.parse_product_info("编码：1001；品名：玫瑰油")
+        self.assertEqual(numeric["product_items"], [{"code": "1001", "name": "玫瑰油"}])
+        names_only = server.parse_product_info("Product name: Rose, Jasmine")
+        self.assertEqual(names_only["product_items"], [{"code": "", "name": "Rose"}, {"code": "", "name": "Jasmine"}])
+        codes_only = server.parse_product_info("Internal code: A1, A2")
+        self.assertEqual(codes_only["product_items"], [{"code": "A1", "name": ""}, {"code": "A2", "name": ""}])
+        quantity_only = server.parse_product_info("Qty: 25kg; Size: 1kg bottle; Target: USD 18/kg")
+        self.assertEqual(quantity_only["product_codes"], "")
+        self.assertEqual(quantity_only["product_names"], "")
+
+    def test_bulk_product_fields_persist_on_markdown_reread_and_csv(self) -> None:
+        store = server.CRMStore(self.root)
+        created = store.create_client({"channel": "alibaba", "product_raw": "SL-001 | Rose Oil\nSL-002 | Jasmine Oil"})
+        self.assertEqual(created["product_codes"], "SL-001\nSL-002")
+        self.assertEqual(created["product_names"], "Rose Oil\nJasmine Oil")
+        profile_path = self.root / "clients" / f"{created['client_id']}.md"
+        profile_text = profile_path.read_text(encoding="utf-8")
+        self.assertIn("| product_codes | SL-001<br>SL-002 |", profile_text)
+        self.assertIn("| product_names | Rose Oil<br>Jasmine Oil |", profile_text)
+        reread = {item["client_id"]: item for item in store.list_clients()}[created["client_id"]]
+        self.assertEqual(reread["product_items"], [{"code": "SL-001", "name": "Rose Oil"}, {"code": "SL-002", "name": "Jasmine Oil"}])
+        refreshed = store.update_client(created["client_id"], {"product_raw": "SL-003 | Cedar Oil\nSL-004 | Amber Oil"})
+        self.assertEqual(refreshed["product_codes"], "SL-003\nSL-004")
+        reread_again = {item["client_id"]: item for item in store.list_clients()}[created["client_id"]]
+        self.assertEqual(reread_again["product_names"], "Cedar Oil\nAmber Oil")
+        csv_text = server.alibaba_csv_bytes(store.list_clients()).decode("utf-8-sig")
+        header = csv_text.splitlines()[0]
+        self.assertIn("内部编码", header)
+        self.assertIn("批量产品名称", header)
+        self.assertIn("SL-003", csv_text)
+        self.assertIn("Cedar Oil", csv_text)
+
+    def test_bulk_columns_preserve_missing_trailing_side_on_reread(self) -> None:
+        store = server.CRMStore(self.root)
+        created = store.create_client({"channel": "alibaba", "product_codes": "A1\nA2", "product_names": "Rose\n"})
+        reread = {item["client_id"]: item for item in store.list_clients()}[created["client_id"]]
+        self.assertEqual(reread["product_codes"], "A1\nA2")
+        self.assertEqual(reread["product_names"], "Rose\n")
+        self.assertEqual(reread["product_items"], [{"code": "A1", "name": "Rose"}, {"code": "A2", "name": ""}])
+        profile_text = (self.root / "clients" / f"{created['client_id']}.md").read_text(encoding="utf-8")
+        self.assertIn("| product_names | Rose<br> |", profile_text)
+
+    def test_frontend_batch_product_controls_and_manual_protection_are_static(self) -> None:
+        index_html = (HERE / "index.html").read_text(encoding="utf-8")
+        app_js = (HERE / "app.js").read_text(encoding="utf-8")
+        css = (HERE / "styles.css").read_text(encoding="utf-8")
+        for marker in ('id="add-product-codes" name="product_codes"', 'id="add-product-names" name="product_names"', 'id="copy-product-codes"', 'id="copy-product-names"'):
+            self.assertIn(marker, index_html)
+        self.assertIn('"product_codes",', app_js)
+        self.assertIn('"product_names",', app_js)
+        self.assertIn('navigator.clipboard', app_js)
+        self.assertIn('document.execCommand("copy")', app_js)
+        self.assertIn('$("#copy-product-codes").addEventListener("click"', app_js)
+        self.assertIn('$("#copy-product-names").addEventListener("click"', app_js)
+        self.assertIn('if (!productParserState.manual.has(field)) input.value = suggestion;', app_js)
+        self.assertIn("bulk-product-grid", css)
+        self.assertIn("@media (max-width: 720px)", css)
+
+    def test_copy_normalization_keeps_blank_rows_static_contract(self) -> None:
+        app_js = (HERE / "app.js").read_text(encoding="utf-8")
+        normalized_source = app_js.split("function normalizedCopyLines", 1)[1].split("async function copyProductColumn", 1)[0]
+        copy_source = app_js.split("async function copyProductColumn", 1)[1].split("function localValidateNew", 1)[0]
+        self.assertIn(r'replace(/\r\n?/g, "\n")', normalized_source)
+        self.assertIn(r'.split("\n").map((line) => line.trim()).join("\n")', normalized_source)
+        self.assertNotIn(".filter(Boolean)", normalized_source)
+        self.assertIn(r'const rows = value.split("\n");', copy_source)
+        self.assertIn("const hasContent = rows.some", copy_source)
+        self.assertIn("rows.length", copy_source)
+        self.assertIn("含空位", copy_source)
+        self.assertIn("CRM-BULK-COPY-001", app_js)
+
+    def test_frontend_pagination_contract_and_mobile_controls_are_static(self) -> None:
+        """分页的顺序、边界和可访问控件无需启动浏览器即可回归检查。"""
+        index_html = (HERE / "index.html").read_text(encoding="utf-8")
+        app_js = (HERE / "app.js").read_text(encoding="utf-8")
+        css = (HERE / "styles.css").read_text(encoding="utf-8")
+
+        for marker in (
+            'id="pagination"',
+            'id="pagination-summary"',
+            'id="pagination-pages"',
+            'id="pagination-prev"',
+            'id="pagination-next"',
+            'id="page-size"',
+        ):
+            self.assertIn(marker, index_html)
+        self.assertIn('<option value="12" selected>12</option>', index_html)
+        self.assertIn('<option value="24">24</option>', index_html)
+        self.assertIn('<option value="48">48</option>', index_html)
+        self.assertIn('aria-label="客户分页"', index_html)
+
+        self.assertIn("page: 1", app_js)
+        self.assertIn("pageSize: 12", app_js)
+        self.assertIn("const PAGE_SIZE_OPTIONS = Object.freeze([12, 24, 48]);", app_js)
+        self.assertIn("function clampPage", app_js)
+        self.assertIn("function paginate", app_js)
+        self.assertIn('aria-current="page"', app_js)
+        self.assertIn("state.page = pagination.page;", app_js)
+        self.assertIn("scrollIntoView", app_js)
+        self.assertIn('matchMedia("(prefers-reduced-motion: reduce)")', app_js)
+        self.assertIn("function handleFilterChange", app_js)
+        self.assertIn("state.page = 1;", app_js)
+
+        filter_source = app_js.split("function applyFilters", 1)[1].split("function renderPagination", 1)[0]
+        self.assertLess(filter_source.index("const currentClients = boardClients();"), filter_source.index("const filtered = currentClients.filter"))
+        self.assertLess(filter_source.index("filtered.sort"), filter_source.index("const pagination = paginate(filtered"))
+        self.assertIn("renderCards(pagination.items)", filter_source)
+        self.assertIn("totalPages", app_js)
+
+        self.assertIn(".pagination[hidden]", css)
+        self.assertIn(".page-boundary[hidden] { display: none; }", css)
+        self.assertIn("flex-wrap: wrap", css)
+        self.assertIn("@media (max-width: 720px)", css)
+        self.assertIn(".pagination-controls { width: 100%;", css)
+
     def test_update_changes_only_editable_fields_and_preserves_outreach(self) -> None:
         record = {
             "client_id": "2026-08-27_update_target",
@@ -386,6 +541,19 @@ class HttpApiTests(unittest.TestCase):
                 self.assertEqual(parsed["fields"]["product_quantity"], "10 kg")
                 self.assertEqual(parsed["fields"]["target_price"], "USD 7/kg")
 
+                bulk_request = urllib.request.Request(
+                    base + "/api/product-info/parse",
+                    data=json.dumps({"raw_text": "Code: 1001, Name: Rose Oil; SL-002 | Jasmine Oil"}).encode("utf-8"),
+                    method="POST",
+                    headers={"Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(bulk_request, timeout=3) as response:
+                    bulk = json.loads(response.read().decode("utf-8"))
+                self.assertEqual(bulk["fields"]["product_codes"], "1001\nSL-002")
+                self.assertEqual(bulk["fields"]["product_names"], "Rose Oil\nJasmine Oil")
+                self.assertEqual(bulk["fields"]["product_items"], [{"code": "1001", "name": "Rose Oil"}, {"code": "SL-002", "name": "Jasmine Oil"}])
+                self.assertIn("product_codes", bulk["matched_fields"])
+
                 with urllib.request.urlopen(base + "/api/clients/export.csv?channel=alibaba", timeout=3) as response:
                     csv_bytes = response.read()
                     self.assertTrue(csv_bytes.startswith(b"\xef\xbb\xbf"))
@@ -397,6 +565,7 @@ class HttpApiTests(unittest.TestCase):
                 log_path = root / "crm-dashboard" / "logs" / server.LOG_FILENAME
                 log_text = log_path.read_text(encoding="utf-8")
                 self.assertIn(server.ERROR_CODES["product_parse"], log_text)
+                self.assertIn(server.ERROR_CODES["bulk_product_parse"], log_text)
                 self.assertNotIn("Rose Oil", log_text)
                 self.assertNotIn("敏感备注 secret", log_text)
             finally:

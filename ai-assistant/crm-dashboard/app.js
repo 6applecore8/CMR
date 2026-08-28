@@ -17,12 +17,16 @@
     cold: "冷却",
   };
   const TIER_LABELS = { A: "A · 优先", B: "B · 跟进", C: "C · 观察" };
+  const UI_ERROR_CODES = { bulkCopy: "CRM-BULK-COPY-001" };
+  const PAGE_SIZE_OPTIONS = Object.freeze([12, 24, 48]);
   const state = {
     clients: [],
     filters: { statuses: [], tiers: [], markets: [], sources: [] },
     activeChannel: "email",
     selectedClientId: null,
     loading: false,
+    page: 1,
+    pageSize: 12,
   };
 
   const $ = (selector) => document.querySelector(selector);
@@ -53,6 +57,52 @@
     const normalized = String(value ?? "").trim();
     return normalized || "未更新";
   };
+
+  function safePageSize(value) {
+    const numeric = Number.parseInt(value, 10);
+    return PAGE_SIZE_OPTIONS.includes(numeric) ? numeric : 12;
+  }
+
+  function clampPage(page, totalItems, pageSize) {
+    const safeSize = safePageSize(pageSize);
+    const totalPages = Math.max(1, Math.ceil(Math.max(0, Number(totalItems) || 0) / safeSize));
+    const numeric = Number.parseInt(page, 10);
+    const candidate = Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+    return Math.min(candidate, totalPages);
+  }
+
+  // 纯分页函数：调用方先完成板块、搜索/筛选和排序，再传入结果切片。
+  function paginate(items, page = 1, pageSize = 12) {
+    const source = Array.isArray(items) ? items : [];
+    const safeSize = safePageSize(pageSize);
+    const totalItems = source.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / safeSize));
+    const safePage = clampPage(page, totalItems, safeSize);
+    const startIndex = totalItems ? (safePage - 1) * safeSize : 0;
+    const endIndex = Math.min(startIndex + safeSize, totalItems);
+    return {
+      items: source.slice(startIndex, endIndex),
+      page: safePage,
+      pageSize: safeSize,
+      totalItems,
+      totalPages,
+      startIndex,
+      endIndex,
+    };
+  }
+
+  function pageTokens(currentPage, totalPages) {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_value, index) => index + 1);
+    const candidates = [1, totalPages, currentPage - 1, currentPage, currentPage + 1]
+      .filter((value) => value >= 1 && value <= totalPages);
+    const pages = [...new Set(candidates)].sort((a, b) => a - b);
+    const tokens = [];
+    pages.forEach((page, index) => {
+      if (index > 0 && page - pages[index - 1] > 1) tokens.push("ellipsis");
+      tokens.push(page);
+    });
+    return tokens;
+  }
 
   function openDialog(dialog) {
     if (!dialog) return;
@@ -100,6 +150,7 @@
   function setLoading(value) {
     state.loading = value;
     $("#loading-state").hidden = !value;
+    if (value) $("#pagination").hidden = true;
     if (value) {
       $("#client-grid").innerHTML = "";
       $("#empty-state").hidden = true;
@@ -194,6 +245,7 @@
           client.company, client.display_name, client.contact_name, client.country_region, client.address, client.product_interest,
           client.product_raw, client.product_name, client.fragrance_requirement, client.product_application,
           client.product_quantity, client.product_specification, client.target_price, client.other_requirements,
+          client.product_codes, client.product_names, JSON.stringify(client.product_items || []),
           client.source, client.status, client.next_action, client.notes, client.public_summary,
         ].join(" ").toLocaleLowerCase();
         if (!haystack.includes(filters.search)) return false;
@@ -206,8 +258,41 @@
       if (filters.sort === "company_asc") return text(a.company, a.client_id).localeCompare(text(b.company, b.client_id), "zh");
       return text(b.updated_at, "").localeCompare(text(a.updated_at, ""));
     });
-    renderCards(filtered);
-    $("#result-count").textContent = `显示 ${filtered.length} / ${currentClients.length} 位${state.activeChannel === "alibaba" ? "阿里客户" : "邮件客户"}`;
+    const pagination = paginate(filtered, state.page, state.pageSize);
+    state.page = pagination.page;
+    renderCards(pagination.items);
+    if (pagination.totalItems) {
+      $("#result-count").textContent = `第 ${pagination.startIndex + 1}–${pagination.endIndex} 条 · 筛选后 ${pagination.totalItems} 条 · 当前渠道 ${currentClients.length} 位`;
+    } else {
+      $("#result-count").textContent = `筛选后 0 条 · 当前渠道 ${currentClients.length} 位`;
+    }
+    renderPagination(pagination, currentClients.length);
+  }
+
+  function renderPagination(pagination, channelTotal) {
+    const nav = $("#pagination");
+    const summary = $("#pagination-summary");
+    const pages = $("#pagination-pages");
+    const previous = $("#pagination-prev");
+    const next = $("#pagination-next");
+    if (!pagination.totalItems) {
+      nav.hidden = true;
+      pages.innerHTML = "";
+      return;
+    }
+    nav.hidden = false;
+    summary.textContent = `第 ${pagination.startIndex + 1}–${pagination.endIndex} 条 · 筛选后 ${pagination.totalItems} 条 · 当前渠道 ${channelTotal} 位`;
+    const singlePage = pagination.totalPages <= 1;
+    pages.hidden = singlePage;
+    previous.hidden = singlePage;
+    next.hidden = singlePage;
+    previous.disabled = singlePage || pagination.page <= 1;
+    next.disabled = singlePage || pagination.page >= pagination.totalPages;
+    pages.innerHTML = singlePage ? "" : pageTokens(pagination.page, pagination.totalPages).map((token) => {
+      if (token === "ellipsis") return '<span class="page-ellipsis" role="presentation" aria-hidden="true">…</span>';
+      const current = token === pagination.page;
+      return `<button class="page-button${current ? " is-current" : ""}" type="button" data-page="${token}" aria-label="第 ${token} 页"${current ? ' aria-current="page"' : ""}>${token}</button>`;
+    }).join("");
   }
 
   function renderStats(stats = {}) {
@@ -320,6 +405,9 @@
         ${detailItem("详情档案", client.has_profile ? client.source_file : "索引 / pipeline 记录")}
       </dl></section>
       ${isAlibaba ? `<section class="detail-section"><h3>Alibaba 产品信息</h3><dl class="detail-grid">
+        ${detailItem("内部编码", client.product_codes)}
+        ${detailItem("批量产品名称", client.product_names)}
+        ${detailItem("批量产品条数", Array.isArray(client.product_items) ? client.product_items.length : 0)}
         ${detailItem("产品名称", client.product_name)}
         ${detailItem("香型要求", client.fragrance_requirement)}
         ${detailItem("产品用途", client.product_application)}
@@ -371,7 +459,10 @@
 
   function formObject(form) {
     const result = {};
-    new FormData(form).forEach((value, key) => { result[key] = typeof value === "string" ? value.trim() : value; });
+    const preserveMultiline = new Set(["product_raw", "product_codes", "product_names", "other_requirements", "notes"]);
+    new FormData(form).forEach((value, key) => {
+      result[key] = typeof value === "string" && !preserveMultiline.has(key) ? value.trim() : value;
+    });
     return result;
   }
 
@@ -383,6 +474,8 @@
     "product_specification",
     "target_price",
     "other_requirements",
+    "product_codes",
+    "product_names",
   ];
   const productParserState = { manual: new Set(), manualInterest: false, suggested: {}, suggestedInterest: "", timer: null, requestId: 0, applying: false };
 
@@ -396,6 +489,10 @@
     productParserState.timer = null;
     const status = $("#product-parse-status");
     if (status) status.textContent = "";
+    const count = $("#bulk-product-count");
+    const pairing = $("#bulk-product-pairing-status");
+    if (count) count.textContent = "未识别产品";
+    if (pairing) pairing.textContent = "等待产品原文";
   }
 
   function setAddFormChannel() {
@@ -436,6 +533,10 @@
     const status = $("#product-parse-status");
     if (!raw) {
       status.textContent = "";
+      const count = $("#bulk-product-count");
+      const pairing = $("#bulk-product-pairing-status");
+      if (count) count.textContent = "未识别产品";
+      if (pairing) pairing.textContent = "等待产品原文";
       return;
     }
     status.textContent = "正在生成拆分建议…";
@@ -458,6 +559,11 @@
           productParserState.suggested[field] = suggestion;
         });
         productParserState.applying = false;
+        const bulkItems = Array.isArray(fields.product_items) ? fields.product_items : [];
+        const bulkCount = $("#bulk-product-count");
+        const bulkPairing = $("#bulk-product-pairing-status");
+        if (bulkCount) bulkCount.textContent = bulkItems.length ? `识别 ${bulkItems.length} 项产品` : "未识别产品";
+        if (bulkPairing) bulkPairing.textContent = bulkItems.length ? "编码与名称按行对应；缺失一侧留空" : "可继续手动填写批量字段";
         const productInterest = $("#add-form").elements.namedItem("product_interest");
         if (productInterest && !productParserState.manualInterest) {
           const previousInterest = productParserState.suggestedInterest || "";
@@ -471,6 +577,44 @@
         status.textContent = error.message || "拆分建议暂不可用，可手动填写";
       }
     }, 420);
+  }
+
+  function normalizedCopyLines(value) {
+    // 复制到 Excel 时必须保留空位，否则编码列和名称列会发生行错位。
+    // 这里只做换行归一化及逐行横向 trim，不删除任何行。
+    return String(value ?? "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.trim()).join("\n");
+  }
+
+  async function copyProductColumn(field, label) {
+    const input = $("#add-form").elements.namedItem(field);
+    const value = normalizedCopyLines(input?.value);
+    const rows = value.split("\n");
+    const hasContent = rows.some((line) => line.length > 0);
+    if (!hasContent) {
+      showToast(`${label}暂无可复制内容（${UI_ERROR_CODES.bulkCopy}）`, true);
+      return;
+    }
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const helper = document.createElement("textarea");
+        helper.value = value;
+        helper.setAttribute("readonly", "");
+        helper.style.position = "fixed";
+        helper.style.opacity = "0";
+        document.body.appendChild(helper);
+        helper.focus();
+        helper.select();
+        const copied = document.execCommand("copy");
+        helper.remove();
+        if (!copied) throw new Error("clipboard fallback rejected");
+      }
+      const emptyRows = rows.reduce((count, line) => count + (line.length ? 0 : 1), 0);
+      showToast(`${label}已复制 ${rows.length} 行${emptyRows ? "（含空位）" : ""}`);
+    } catch (_error) {
+      showToast(`${label}复制失败（${UI_ERROR_CODES.bulkCopy}），请手动选择复制`, true);
+    }
   }
 
   function localValidateNew(data) {
@@ -496,6 +640,7 @@
     } catch (error) {
       $("#loading-state").hidden = true;
       $("#client-grid").innerHTML = "";
+      $("#pagination").hidden = true;
       $("#empty-state").hidden = true;
       $("#error-state").hidden = false;
       $("#error-message").textContent = error.message || "请确认本地服务仍在运行，然后重试。";
@@ -563,6 +708,7 @@
   }
 
   function resetFilters() {
+    state.page = 1;
     $("#search-input").value = "";
     $("#status-filter").value = "";
     $("#tier-filter").value = "";
@@ -572,12 +718,40 @@
     applyFilters();
   }
 
+  function goToPage(page) {
+    state.page = page;
+    applyFilters();
+    const heading = $(".results-heading");
+    if (heading && typeof heading.scrollIntoView === "function") {
+      const reducedMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      heading.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+    }
+  }
+
+  function handleFilterChange() {
+    state.page = 1;
+    applyFilters();
+  }
+
   function bindEvents() {
-    ["#search-input", "#status-filter", "#tier-filter", "#market-filter", "#source-filter", "#sort-filter"].forEach((selector) => $(selector).addEventListener(selector === "#search-input" ? "input" : "change", applyFilters));
+    ["#search-input", "#status-filter", "#tier-filter", "#market-filter", "#source-filter", "#sort-filter"].forEach((selector) => $(selector).addEventListener(selector === "#search-input" ? "input" : "change", handleFilterChange));
     $("#reset-filters").addEventListener("click", resetFilters);
     $("#empty-reset-btn").addEventListener("click", resetFilters);
     $("#refresh-btn").addEventListener("click", () => loadData());
     $("#retry-btn").addEventListener("click", () => loadData());
+    $("#page-size").value = String(state.pageSize);
+    $("#page-size").addEventListener("change", (event) => {
+      state.pageSize = safePageSize(event.currentTarget.value);
+      event.currentTarget.value = String(state.pageSize);
+      state.page = 1;
+      applyFilters();
+    });
+    $("#pagination-prev").addEventListener("click", () => goToPage(state.page - 1));
+    $("#pagination-next").addEventListener("click", () => goToPage(state.page + 1));
+    $("#pagination-pages").addEventListener("click", (event) => {
+      const pageButton = event.target.closest("[data-page]");
+      if (pageButton) goToPage(pageButton.dataset.page);
+    });
     $("#client-grid").addEventListener("click", (event) => {
       const card = event.target.closest("[data-client-id]");
       if (card) showClientDetail(card.dataset.clientId);
@@ -603,6 +777,8 @@
     $("#edit-form").addEventListener("submit", submitEdit);
     $("#add-form").addEventListener("submit", submitNew);
     $("#add-product-raw").addEventListener("input", scheduleProductParse);
+    $("#copy-product-codes").addEventListener("click", () => copyProductColumn("product_codes", "内部编码"));
+    $("#copy-product-names").addEventListener("click", () => copyProductColumn("product_names", "产品名称"));
     productSplitFields.forEach((field) => {
       const input = $("#add-form").elements.namedItem(field);
       if (input) input.addEventListener("input", () => {

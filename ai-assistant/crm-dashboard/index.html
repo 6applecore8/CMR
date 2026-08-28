@@ -157,6 +157,23 @@
         </section>
 
         <section id="client-grid" class="card-grid" aria-label="客户卡片列表"></section>
+        <nav id="pagination" class="pagination" aria-label="客户分页" hidden>
+          <div id="pagination-summary" class="pagination-summary" aria-live="polite"></div>
+          <div class="pagination-controls">
+            <label class="page-size-wrap" for="page-size">
+              <span>每页</span>
+              <select id="page-size" aria-label="每页显示数量">
+                <option value="12" selected>12</option>
+                <option value="24">24</option>
+                <option value="48">48</option>
+              </select>
+              <span>条</span>
+            </label>
+            <button id="pagination-prev" class="page-button page-boundary" type="button" aria-label="上一页">上一页</button>
+            <div id="pagination-pages" class="pagination-pages" role="list" aria-label="页码"></div>
+            <button id="pagination-next" class="page-button page-boundary" type="button" aria-label="下一页">下一页</button>
+          </div>
+        </nav>
       </main>
 
       <footer class="footer">
@@ -293,6 +310,32 @@
               <label class="field"><span>目标价格</span><input name="target_price" maxlength="160" placeholder="Target price / budget" /></label>
               <label class="field field-wide"><span>其他要求</span><textarea name="other_requirements" rows="3" maxlength="1200" placeholder="包装、合规或其他要求"></textarea></label>
             </div>
+            <section class="bulk-product-section" aria-labelledby="bulk-product-heading">
+              <div class="bulk-product-heading-row">
+                <div>
+                  <h3 id="bulk-product-heading">批量产品拆分</h3>
+                  <p class="field-help">一行对应一项产品；两侧缺失时保留空行。可直接复制单列到 Excel。</p>
+                </div>
+                <div class="bulk-product-meta" aria-live="polite">
+                  <strong id="bulk-product-count">未识别产品</strong>
+                  <span id="bulk-product-pairing-status">等待产品原文</span>
+                </div>
+              </div>
+              <div class="bulk-product-grid">
+                <label class="field">
+                  <span>内部编码 <small>一行一个</small></span>
+                  <textarea id="add-product-codes" name="product_codes" rows="6" maxlength="12000" placeholder="SL-001&#10;SL-002"></textarea>
+                </label>
+                <label class="field">
+                  <span>批量产品名称 <small>与编码按行对应</small></span>
+                  <textarea id="add-product-names" name="product_names" rows="6" maxlength="12000" placeholder="Rose Fragrance Oil&#10;Jasmine Oil"></textarea>
+                </label>
+              </div>
+              <div class="bulk-product-actions">
+                <button id="copy-product-codes" class="button button-quiet" type="button">复制内部编码</button>
+                <button id="copy-product-names" class="button button-quiet" type="button">复制产品名称</button>
+              </div>
+            </section>
           </div>
 
           <div class="form-section-title">跟进判断</div>

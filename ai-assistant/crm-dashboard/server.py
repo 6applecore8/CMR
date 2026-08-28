@@ -69,6 +69,9 @@ ERROR_CODES = {
     "api": "CRM-API-001",
     "unexpected": "CRM-UNEXPECTED-001",
     "product_parse": "CRM-PRODUCT-PARSE-001",
+    "bulk_product_parse": "CRM-BULK-PRODUCT-PARSE-001",
+    "bulk_copy": "CRM-BULK-COPY-001",
+    "pagination": "CRM-PAGINATION-001",
 }
 SENSITIVE_LOG_KEYS = {
     "email",
@@ -88,6 +91,9 @@ SENSITIVE_LOG_KEYS = {
     "target_price",
     "raw_text",
     "other_requirements",
+    "product_codes",
+    "product_names",
+    "product_items",
     "raw_markdown",
     "content",
     "payload",
@@ -109,6 +115,8 @@ EDITABLE_FIELDS = {
     "known_phone",
     "product_interest",
     "product_raw",
+    "product_codes",
+    "product_names",
     "product_name",
     "fragrance_requirement",
     "product_application",
@@ -133,6 +141,8 @@ PROFILE_FIELDS: Tuple[str, ...] = (
     "known_phone",
     "product_interest",
     "product_raw",
+    "product_codes",
+    "product_names",
     "product_name",
     "fragrance_requirement",
     "product_application",
@@ -149,6 +159,8 @@ PROFILE_FIELDS: Tuple[str, ...] = (
 )
 PRODUCT_FIELDS: Tuple[str, ...] = (
     "product_raw",
+    "product_codes",
+    "product_names",
     "product_name",
     "fragrance_requirement",
     "product_application",
@@ -189,6 +201,24 @@ PRODUCT_LABELS = {
     "target_price": ("target_price", "target price", "target", "price", "budget", "目标价格", "目标价", "目标", "价格", "预算"),
     "other_requirements": ("other_requirements", "other requirements", "requirements", "requirement", "要求", "其他要求"),
 }
+
+BULK_PRODUCT_CODE_LABELS = (
+    "internal code",
+    "product code",
+    "item no.",
+    "item no",
+    "sku",
+    "内部编码",
+    "产品编码",
+    "编码",
+    "code",
+)
+BULK_PRODUCT_NAME_LABELS = (
+    "product name",
+    "产品名称",
+    "品名",
+    "name",
+)
 
 # 旧档案中使用过的英文、中文、简写字段名。键统一为标准 API 字段。
 FIELD_ALIASES = {
@@ -233,6 +263,28 @@ FIELD_ALIASES = {
     "product_raw": "product_raw",
     "product raw": "product_raw",
     "产品原文": "product_raw",
+    "product_codes": "product_codes",
+    "product codes": "product_codes",
+    "internal code": "product_codes",
+    "internal codes": "product_codes",
+    "internal_code": "product_codes",
+    "product code": "product_codes",
+    "product_code": "product_codes",
+    "product codes list": "product_codes",
+    "sku": "product_codes",
+    "item no": "product_codes",
+    "item no.": "product_codes",
+    "item_no": "product_codes",
+    "内部编码": "product_codes",
+    "产品编码": "product_codes",
+    "编码": "product_codes",
+    "product_names": "product_names",
+    "product names": "product_names",
+    "batch product names": "product_names",
+    "product_name_list": "product_names",
+    "batch_product_names": "product_names",
+    "产品名称列表": "product_names",
+    "批量产品名称": "product_names",
     "product_name": "product_name",
     "product name": "product_name",
     "品名": "product_name",
@@ -425,6 +477,20 @@ def _normalize_multiline(value: Any) -> str:
     return text.strip()
 
 
+def _normalize_multiline_list(value: Any) -> str:
+    """规范化按行保存的批量字段，同时保留一行一个项目的结构。"""
+
+    if value is None:
+        return ""
+    text = str(value).replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    # 只去掉整体两侧的横向空格；首尾换行可能代表某一侧缺失，必须保留。
+    text = text.strip(" \t")
+    if not text:
+        return ""
+    return "\n".join(line.strip() for line in text.split("\n"))
+
+
 def is_alibaba_source(source: Any) -> bool:
     """按设计文档把 source 含 alibaba/阿里的客户归入 Alibaba 板块。"""
 
@@ -465,7 +531,202 @@ def display_name_for_record(record: Mapping[str, Any]) -> str:
     return company or _strip_markup(record.get("client_id")) or "未命名客户"
 
 
-def parse_product_info(raw_text: Any) -> Dict[str, str]:
+def _looks_like_unlabelled_product_code(value: Any) -> bool:
+    """无标签编码必须同时包含字母和数字，避免把数量当编码。"""
+
+    text = _strip_markup(value).strip()
+    if re.fullmatch(r"\d[\d,.]*(?:\s*)(?:kg|kgs|g|mg|ml|l|pcs|pieces|units|boxes|box|bottles?|箱|瓶|公斤|千克|克|毫升|升|件|个)", text, re.IGNORECASE):
+        return False
+    return bool(text and re.fullmatch(r"(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9._/-]+", text))
+
+
+def _split_bulk_event_values(value: Any, kind: str, *, explicit_label: bool) -> List[str]:
+    """把一个编码/名称标签值拆为保序的一行列表。"""
+
+    text = _normalize_multiline(value)
+    if not text:
+        return []
+    values: List[str] = []
+    for line in text.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        if kind == "code":
+            parts = re.split(r"[,，;；|/\t]+", line)
+        else:
+            # 批量名称常以逗号/分号列出；显式 Name/Product name 标签
+            # 已经把正文边界切开，因此这里按常见批量分隔符拆开。
+            parts = re.split(r"[,，;；|/\t]+", line)
+        for part in parts:
+            candidate = part.strip(" \t,，;；|/")
+            if not candidate:
+                continue
+            if kind == "code" and not explicit_label and not _looks_like_unlabelled_product_code(candidate):
+                continue
+            values.append(candidate)
+    return values
+
+
+def _line_contains_unlabelled_product_pair(line: str) -> bool:
+    """判断一行是否已经是独立的 ``编码 + 名称`` 批量记录。"""
+
+    for chunk in re.split(r"\s*[;；]\s*", line):
+        candidate = chunk.strip()
+        if not candidate:
+            continue
+        split = re.split(r"\s*(?:\||/|\t|,|，|:|：)\s*", candidate, maxsplit=1)
+        if len(split) != 2:
+            split = re.split(r"\s+", candidate, maxsplit=1)
+        if len(split) == 2 and _looks_like_unlabelled_product_code(split[0]) and split[1].strip():
+            return True
+    return False
+
+
+def _trim_bulk_value_at_unlabelled_pair(value: str) -> str:
+    """不让显式标签吞掉同一行后续的无标签 ``code | name`` 记录。"""
+
+    kept: List[str] = []
+    for line in value.splitlines():
+        for fragment in re.split(r"[;；]", line):
+            fragment = fragment.strip()
+            if kept and _line_contains_unlabelled_product_pair(fragment):
+                return "\n".join(kept).strip(" \t\r\n,，;；|/")
+            if fragment:
+                kept.append(fragment)
+    return "\n".join(kept).strip(" \t\r\n,，;；|/")
+
+
+def _bulk_label_events(raw: str) -> List[Tuple[str, int, str]]:
+    """提取带标签的编码/名称事件，返回 (kind, start, value)。"""
+
+    label_pairs = [(label, "code") for label in BULK_PRODUCT_CODE_LABELS]
+    label_pairs.extend((label, "name") for label in BULK_PRODUCT_NAME_LABELS)
+    label_pairs.sort(key=lambda item: len(item[0]), reverse=True)
+    pattern = re.compile("|".join(re.escape(label) for label, _ in label_pairs), re.IGNORECASE)
+    lookup = {label.casefold(): kind for label, kind in label_pairs}
+    separators = set("\n\r,，;；|/\t:：=")
+    matches: List[Tuple[str, int, int]] = []
+    for match in pattern.finditer(raw):
+        kind = lookup.get(match.group(0).casefold())
+        if not kind:
+            continue
+        prefix = raw[: match.start()].rstrip(" \t")
+        if prefix and prefix[-1] not in separators:
+            # 只接受行首/明确分隔符后的标签，避免正文普通单词误切。
+            continue
+        suffix = raw[match.end() :]
+        delimiter = re.match(r"\s*(?::|：|=|[-—])\s*", suffix)
+        if delimiter:
+            value_start = match.end() + delimiter.end()
+        else:
+            space = re.match(r"[ \t]+", suffix)
+            if not space:
+                continue
+            value_start = match.end() + space.end()
+        matches.append((kind, value_start, match.start()))
+
+    events: List[Tuple[str, int, str]] = []
+    for index, (kind, value_start, label_start) in enumerate(matches):
+        value_end = matches[index + 1][2] if index + 1 < len(matches) else len(raw)
+        value = raw[value_start:value_end].strip(" \t\r\n,，;；|/")
+        # 一个带标签值后的下一行若已经是独立的无标签产品行，不能被
+        # 前一个 Name/Code 标签吞掉；其内容会由无标签行解析保序处理。
+        value = _trim_bulk_value_at_unlabelled_pair(value)
+        if value:
+            events.append((kind, label_start, value))
+    return events
+
+
+def _unlabelled_product_pairs(raw: str) -> List[Tuple[int, str, str]]:
+    """解析 ``SL-001 | Rose``、Tab、逗号/冒号及无标签代码行。"""
+
+    pairs: List[Tuple[int, str, str]] = []
+    for line_match in re.finditer(r"[^\r\n]+", raw):
+        line = line_match.group(0).strip()
+        if not line:
+            continue
+        # 分号切开的片段也可作为一条无标签记录；带竖线/Tab/逗号/冒号
+        # 的标准格式优先，名称本身的空格不受影响。
+        chunks = re.split(r"\s*[;；]\s*", line)
+        offset = line_match.start()
+        for chunk in chunks:
+            candidate = chunk.strip()
+            if not candidate:
+                offset += len(chunk) + 1
+                continue
+            split = re.split(r"\s*(?:\||/|\t|,|，|:|：)\s*", candidate, maxsplit=1)
+            if len(split) != 2:
+                split = re.split(r"\s+", candidate, maxsplit=1)
+            if len(split) != 2:
+                if _looks_like_unlabelled_product_code(candidate):
+                    pairs.append((offset, candidate, ""))
+                offset += len(chunk) + 1
+                continue
+            code, name = (part.strip() for part in split)
+            if _looks_like_unlabelled_product_code(code) and (name or re.search(r"\||/|\t|,|，|:|：", candidate)):
+                pairs.append((offset, code, name.strip(" \t|/:：-—")))
+            offset += len(chunk) + 1
+    return pairs
+
+
+def _product_items_from_columns(codes: Any, names: Any) -> List[Dict[str, str]]:
+    """按行合并编码/名称两列，缺失的一侧保留为空并去重。"""
+
+    normalized_codes = _normalize_multiline_list(codes)
+    normalized_names = _normalize_multiline_list(names)
+    code_lines = normalized_codes.split("\n") if normalized_codes else []
+    name_lines = normalized_names.split("\n") if normalized_names else []
+    items: List[Dict[str, str]] = []
+    seen: set[Tuple[str, str]] = set()
+    for index in range(max(len(code_lines), len(name_lines))):
+        code = code_lines[index].strip() if index < len(code_lines) else ""
+        name = name_lines[index].strip() if index < len(name_lines) else ""
+        if not code and not name:
+            continue
+        pair = (code, name)
+        if pair in seen:
+            continue
+        seen.add(pair)
+        items.append({"code": code, "name": name})
+    return items
+
+
+def _parse_bulk_product_items(raw: str) -> List[Dict[str, str]]:
+    """生成带顺序的批量产品项目；解析失败时返回空列表。"""
+
+    events = _bulk_label_events(raw)
+    code_values: List[Tuple[str, int]] = []
+    name_values: List[Tuple[str, int]] = []
+    for kind, start, value in events:
+        for item in _split_bulk_event_values(value, kind, explicit_label=True):
+            (code_values if kind == "code" else name_values).append((item, start))
+
+    candidates: List[Tuple[int, str, str]] = []
+    for index in range(max(len(code_values), len(name_values))):
+        code, code_start = code_values[index] if index < len(code_values) else ("", 10**12)
+        name, name_start = name_values[index] if index < len(name_values) else ("", 10**12)
+        candidates.append((min(code_start, name_start), code, name))
+    candidates.extend(_unlabelled_product_pairs(raw))
+    candidates.sort(key=lambda item: item[0])
+
+    items: List[Dict[str, str]] = []
+    seen: set[Tuple[str, str]] = set()
+    for _start, code, name in candidates:
+        pair = (code.strip(), name.strip())
+        if not pair[0] and not pair[1]:
+            continue
+        if pair in seen:
+            continue
+        seen.add(pair)
+        items.append({"code": pair[0], "name": pair[1]})
+    return items
+
+
+def _bulk_columns_from_items(items: Sequence[Mapping[str, Any]]) -> Tuple[str, str]:
+    return ("\n".join(_strip_markup(item.get("code")) for item in items), "\n".join(_strip_markup(item.get("name")) for item in items))
+
+
+def parse_product_info(raw_text: Any) -> Dict[str, Any]:
     """把客户产品原文拆成可编辑建议字段。
 
     该函数是纯函数，方便单元测试和前端 API 共用。标签解析支持中英文、
@@ -475,6 +736,7 @@ def parse_product_info(raw_text: Any) -> Dict[str, str]:
 
     raw = _normalize_multiline(raw_text)
     result = {field: "" for field in PRODUCT_FIELDS if field != "product_raw"}
+    result["product_items"] = []
     if not raw:
         return result
 
@@ -574,6 +836,18 @@ def parse_product_info(raw_text: Any) -> Dict[str, str]:
     if not result["product_application"] and use_hits:
         result["product_application"] = "、".join(use_hits)
 
+    # 批量产品信息与旧的单值摘要并存：前者保留顺序和空缺侧，后者只取
+    # 第一项名称，避免十余项产品被拼成一个超长 product_name。
+    product_items = _parse_bulk_product_items(raw)
+    product_codes, product_names = _bulk_columns_from_items(product_items)
+    result["product_codes"] = product_codes
+    result["product_names"] = product_names
+    result["product_items"] = product_items
+    first_name = next((item["name"] for item in product_items if item.get("name")), "")
+    if product_items:
+        # 一旦识别到批量结构，旧单值摘要只反映第一项名称；编码-only
+        # 输入则明确保持为空，不把 ``Internal code: ...`` 当产品名称。
+        result["product_name"] = first_name
     return result
 
 
@@ -684,9 +958,10 @@ def parse_profile(content: str, fallback_id: str = "") -> Dict[str, Any]:
             if value and not result.get(key):
                 result[key] = value
 
-    for multiline_field in ("address", "product_raw"):
+    for multiline_field in ("address", "product_raw", "product_codes", "product_names"):
         if result.get(multiline_field):
-            result[multiline_field] = _normalize_multiline(result[multiline_field])
+            normalizer = _normalize_multiline_list if multiline_field in {"product_codes", "product_names"} else _normalize_multiline
+            result[multiline_field] = normalizer(result[multiline_field])
 
     # 标题仅作为缺失字段的弱回退，不覆盖档案表格中的正式值。
     heading_match = re.search(r"(?m)^#\s+(.+?)\s*$", content)
@@ -707,6 +982,9 @@ def parse_profile(content: str, fallback_id: str = "") -> Dict[str, Any]:
     result["icp_score"] = _parse_score(result.get("icp_score"))
     result["icp_tier"] = _normal_tier(result.get("icp_tier"))
     result["status"] = _normal_status(result.get("status"))
+    result["product_items"] = _product_items_from_columns(result.get("product_codes"), result.get("product_names"))
+    if result["product_items"] and not result.get("product_name"):
+        result["product_name"] = next((item["name"] for item in result["product_items"] if item.get("name")), "")
     return result
 
 
@@ -803,6 +1081,7 @@ def _empty_record(client_id: str = "") -> Dict[str, Any]:
             "outreach_log": "",
             "communication_points": "",
             "product_quote_links": "",
+            "product_items": [],
             "source_file": "",
             "has_profile": False,
         }
@@ -851,6 +1130,9 @@ def merge_records(
             for field, value in suggestions.items():
                 if field in PRODUCT_FIELDS and field != "product_raw" and not record.get(field):
                     record[field] = value
+        record["product_items"] = _product_items_from_columns(record.get("product_codes"), record.get("product_names"))
+        if record["product_items"] and not record.get("product_name"):
+            record["product_name"] = next((item["name"] for item in record["product_items"] if item.get("name")), "")
         if not record.get("product_interest"):
             record["product_interest"] = product_interest_summary(record)
         record["customer_channel"] = channel_for_record(record)
@@ -976,6 +1258,8 @@ def validate_client_payload(
         "known_email": 320,
         "known_phone": 120,
         "product_interest": 600,
+        "product_codes": 12000,
+        "product_names": 12000,
         "product_name": 240,
         "fragrance_requirement": 600,
         "product_application": 300,
@@ -990,6 +1274,10 @@ def validate_client_payload(
         if field in data:
             if field == "address":
                 data[field] = _normalize_multiline(data[field])
+                if len(data[field]) > max_length:
+                    raise ValidationError(f"{field} 不能超过 {max_length} 个字符")
+            elif field in {"product_codes", "product_names"}:
+                data[field] = _normalize_multiline_list(data[field])
                 if len(data[field]) > max_length:
                     raise ValidationError(f"{field} 不能超过 {max_length} 个字符")
             else:
@@ -1048,9 +1336,10 @@ def _new_id(company: str, existing_ids: Iterable[str]) -> str:
 
 def _profile_table_line(label: str, value: Any) -> str:
     field = _normal_field_name(label)
-    if field in {"product_raw", "address"}:
+    if field in {"product_raw", "product_codes", "product_names", "address"}:
         # Markdown 表格单元格不能直接跨行；用 <br> 保留换行，解析时再还原。
-        safe = _normalize_multiline(value).replace("|", "／").replace("\n", "<br>")
+        normalizer = _normalize_multiline_list if field in {"product_codes", "product_names"} else _normalize_multiline
+        safe = normalizer(value).replace("|", "／").replace("\n", "<br>")
     else:
         safe = _safe_cell(value)
     return f"| {label} | {safe} |"
@@ -1094,6 +1383,8 @@ def render_client_markdown(record: Mapping[str, Any]) -> str:
         "known_phone": "known_phone",
         "product_interest": "product_interest",
         "product_raw": "product_raw",
+        "product_codes": "product_codes",
+        "product_names": "product_names",
         "product_name": "product_name",
         "fragrance_requirement": "fragrance_requirement",
         "product_application": "product_application",
@@ -1360,6 +1651,9 @@ class CRMStore:
             record["customer_channel"] = selected_channel
             record["channel"] = selected_channel
             record["is_alibaba"] = selected_channel == "alibaba"
+            record["product_items"] = _product_items_from_columns(record.get("product_codes"), record.get("product_names"))
+            if record["product_items"] and not record.get("product_name"):
+                record["product_name"] = next((item["name"] for item in record["product_items"] if item.get("name")), "")
             record["display_name"] = display_name_for_record(record)
             try:
                 index_text = self.index_path.read_text(encoding="utf-8") if self.index_path.exists() else "# 客户索引\n\n| client_id | company | market_bucket | tier | score | status | source | updated |\n|---|---|---|---|---|---|---|---|\n"
@@ -1425,6 +1719,9 @@ class CRMStore:
                     # 用户手改，会把该字段一并提交，因此仍保持不覆盖。
                     if "product_raw" in data or not merged.get(field):
                         merged[field] = value
+            merged["product_items"] = _product_items_from_columns(merged.get("product_codes"), merged.get("product_names"))
+            if merged["product_items"] and "product_name" not in data and not merged.get("product_name"):
+                merged["product_name"] = next((item["name"] for item in merged["product_items"] if item.get("name")), "")
             if "product_interest" not in data and any(merged.get(field) for field in PRODUCT_FIELDS if field != "product_raw"):
                 merged["product_interest"] = product_interest_summary(merged)
             merged["customer_channel"] = channel_for_record(merged)
@@ -1515,6 +1812,8 @@ ALIBABA_CSV_COLUMNS: Tuple[Tuple[str, str], ...] = (
     ("邮箱", "known_email"),
     ("产品原文", "product_raw"),
     ("产品名称", "product_name"),
+    ("内部编码", "product_codes"),
+    ("批量产品名称", "product_names"),
     ("香型要求", "fragrance_requirement"),
     ("产品用途", "product_application"),
     ("产品数量", "product_quantity"),
@@ -1534,7 +1833,7 @@ def alibaba_csv_bytes(records: Sequence[Mapping[str, Any]]) -> bytes:
     for record in records:
         if channel_for_record(record) != "alibaba":
             continue
-        writer.writerow([_normalize_multiline(record.get(field)) if field == "product_raw" else _strip_markup(record.get(field)) for _, field in ALIBABA_CSV_COLUMNS])
+        writer.writerow([_normalize_multiline_list(record.get(field)) if field in {"product_codes", "product_names"} else _normalize_multiline(record.get(field)) if field == "product_raw" else _strip_markup(record.get(field)) for _, field in ALIBABA_CSV_COLUMNS])
     return buffer.getvalue().encode("utf-8-sig")
 
 
@@ -1706,14 +2005,16 @@ class CRMRequestHandler(BaseHTTPRequestHandler):
                     raise ValidationError("产品原文不能超过 10000 个字符")
                 fields = parse_product_info(raw)
                 duration_ms = round((time.perf_counter() - started) * 1000, 2)
-                matched_fields = [field for field, value in fields.items() if value]
-                # 这里明确只记录长度、命中字段和耗时，绝不记录原文。
+                matched_fields = [field for field, value in fields.items() if field != "product_items" and value]
+                item_count = len(fields.get("product_items") or [])
+                error_code = ERROR_CODES["bulk_product_parse"] if item_count or fields.get("product_codes") or fields.get("product_names") else ERROR_CODES["product_parse"]
+                # 这里明确只记录长度、命中字段、条数和耗时，绝不记录原文。
                 self.store.logger.info(
-                    "product_parse",
+                    "bulk_product_parse" if error_code == ERROR_CODES["bulk_product_parse"] else "product_parse",
                     "success",
-                    ERROR_CODES["product_parse"],
+                    error_code,
                     "产品信息拆分完成",
-                    {"raw_length": len(raw), "matched_fields": matched_fields, "duration_ms": duration_ms},
+                    {"raw_length": len(raw), "matched_fields": matched_fields, "item_count": item_count, "duration_ms": duration_ms},
                     {"method": "POST", "path": "/api/product-info/parse"},
                 )
                 self._send_json(HTTPStatus.OK, {"fields": fields, "raw_length": len(raw), "matched_fields": matched_fields})
