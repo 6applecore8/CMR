@@ -15,9 +15,9 @@
     "rollback_reference"
   ],
   "start_condition": "Only after the three files above are read and the handoff summary is understood.",
-  "latest_log_event": "git_push.connection_failed",
-  "latest_log_status": "retrying",
-  "latest_error_code": "CRM-GIT-001",
+  "latest_log_event": "git_push.recovered_completed",
+  "latest_log_status": "passed",
+  "latest_error_code": "CRM-OK-001",
   "latest_validation_event": "browser_qa.responsive_and_console_passed",
   "latest_validation_status": "passed",
   "handoff_confirmation_event": "a2a.handoff_read_confirmed",
