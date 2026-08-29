@@ -534,10 +534,67 @@ def display_name_for_record(record: Mapping[str, Any]) -> str:
 def _looks_like_unlabelled_product_code(value: Any) -> bool:
     """无标签编码必须同时包含字母和数字，避免把数量当编码。"""
 
-    text = _strip_markup(value).strip()
+    text = re.sub(r"\s+", " ", _strip_markup(value)).strip()
     if re.fullmatch(r"\d[\d,.]*(?:\s*)(?:kg|kgs|g|mg|ml|l|pcs|pieces|units|boxes|box|bottles?|箱|瓶|公斤|千克|克|毫升|升|件|个)", text, re.IGNORECASE):
         return False
-    return bool(text and re.fullmatch(r"(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9._/-]+", text))
+    if re.search(r"\b(?:product|internal|code|name|sku|item)\b", text, re.IGNORECASE):
+        return False
+    compact = text.replace(" ", "")
+    return bool(compact and re.fullmatch(r"(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9._/-]+", compact))
+
+
+def _clean_tabular_product_name(value: Any) -> str:
+    """移除表格状态列，不把 ✅/⚠️ 与其说明混入产品名称。"""
+
+    text = _strip_markup(value).strip(" \t|/:：-—")
+    return re.split(r"\s*(?:✅|⚠️|⚠|❌|☑️|✔️)", text, maxsplit=1)[0].strip()
+
+
+def _clean_tabular_product_code(value: Any) -> str:
+    """提取表格编码的主值，忽略编码后的全角/半角括号说明。"""
+
+    text = re.sub(r"\s+", " ", _strip_markup(value)).strip(" \t|/:：-—")
+    return re.split(r"\s*[（(]", text, maxsplit=1)[0].strip()
+
+
+def _tabular_product_pair(line: str) -> Optional[Tuple[str, str]]:
+    """解析 Alibaba 常见的 ``序号  名称  编码  状态`` 表格行。
+
+    列可以由 Tab 或至少两个空格分隔；编码内部的单个空格会保留，
+    例如 ``FY01 4866E``。同时兼容旧的 ``编码  名称`` 顺序。
+    """
+
+    candidate = line.strip()
+    if not candidate:
+        return None
+    numbered = re.match(r"^\s*\d{1,3}(?:[.)、]\s*|\t+| {2,})(?P<body>.+)$", candidate)
+    is_numbered = numbered is not None
+    if numbered:
+        candidate = numbered.group("body").strip()
+    columns = [part.strip() for part in re.split(r"\t+| {2,}", candidate) if part.strip()]
+    if len(columns) < 2:
+        return None
+    code_indexes = [
+        index
+        for index, value in enumerate(columns)
+        if _looks_like_unlabelled_product_code(_clean_tabular_product_code(value))
+    ]
+    if not code_indexes:
+        return None
+    # Alibaba 导出的带序号表格采用“名称在前、编码在后”。当产品名本身
+    # 含年份/型号（例如 Aroma Blend 01）时，两列都可能像编码；此时选
+    # 最后一个候选，避免把含数字的产品名误放进编码列。无序号的旧格式
+    # 仍优先使用第一个候选，以兼容 ``CODE  Product name``。
+    code_index = code_indexes[-1] if is_numbered else code_indexes[0]
+    code = _clean_tabular_product_code(columns[code_index])
+    if code_index == 0:
+        name_parts = columns[1:]
+    else:
+        name_parts = columns[:code_index]
+    name = _clean_tabular_product_name(" ".join(name_parts))
+    if not name:
+        return None
+    return code, name
 
 
 def _split_bulk_event_values(value: Any, kind: str, *, explicit_label: bool) -> List[str]:
@@ -570,6 +627,8 @@ def _split_bulk_event_values(value: Any, kind: str, *, explicit_label: bool) -> 
 def _line_contains_unlabelled_product_pair(line: str) -> bool:
     """判断一行是否已经是独立的 ``编码 + 名称`` 批量记录。"""
 
+    if _tabular_product_pair(line):
+        return True
     for chunk in re.split(r"\s*[;；]\s*", line):
         candidate = chunk.strip()
         if not candidate:
@@ -638,12 +697,17 @@ def _bulk_label_events(raw: str) -> List[Tuple[str, int, str]]:
 
 
 def _unlabelled_product_pairs(raw: str) -> List[Tuple[int, str, str]]:
-    """解析 ``SL-001 | Rose``、Tab、逗号/冒号及无标签代码行。"""
+    """解析名称/编码表格行及 ``SL-001 | Rose`` 等无标签格式。"""
 
     pairs: List[Tuple[int, str, str]] = []
     for line_match in re.finditer(r"[^\r\n]+", raw):
         line = line_match.group(0).strip()
         if not line:
+            continue
+        tabular_pair = _tabular_product_pair(line)
+        if tabular_pair:
+            code, name = tabular_pair
+            pairs.append((line_match.start(), code, name))
             continue
         # 分号切开的片段也可作为一条无标签记录；带竖线/Tab/逗号/冒号
         # 的标准格式优先，名称本身的空格不受影响。

@@ -22,6 +22,9 @@
             <span class="health-dot" aria-hidden="true"></span>
             <span>正在检查服务</span>
           </div>
+          <button id="draft-box-btn" class="button button-quiet draft-box-button" type="button" aria-haspopup="dialog">
+            草稿箱 <strong id="draft-count" class="draft-count">0</strong>
+          </button>
           <button id="add-client-btn" class="button button-primary" type="button">
             <span aria-hidden="true">＋</span> 新增客户
           </button>
@@ -295,26 +298,17 @@
 
           <div id="product-parser-fields" class="product-parser-section" hidden>
             <div class="form-section-title">Alibaba 产品信息</div>
-            <p class="field-help">粘贴客户原文后会自动给出拆分建议；你手动改过的字段不会被后续建议覆盖。</p>
+            <p class="field-help">一次支持识别 50 条产品，系统会按原顺序拆成“内部编码”和“产品名称”两列。序号、状态符号和括号备注不会混入结果。</p>
             <label class="field field-wide">
               <span>产品原文</span>
-              <textarea id="add-product-raw" name="product_raw" rows="5" maxlength="10000" placeholder="例如：Product: Lavender fragrance oil; Qty: 100 kg; Application: soap; Target price: USD 8/kg"></textarea>
+              <textarea id="add-product-raw" name="product_raw" rows="8" maxlength="10000" placeholder="例如：&#10;1    Miss Dior Blooming Bouquet    23F0907    ✅&#10;2    Jo Malone Peony &amp; Blush Suede    FY014866S    ⚠️ 有码无价"></textarea>
               <small id="product-parse-status" class="field-status" role="status" aria-live="polite"></small>
             </label>
-            <div class="form-grid product-split-grid">
-              <label class="field"><span>产品名称</span><input name="product_name" maxlength="240" placeholder="Product name" /></label>
-              <label class="field"><span>香型要求</span><input name="fragrance_requirement" maxlength="600" placeholder="Scent / fragrance requirement" /></label>
-              <label class="field"><span>产品用途</span><input name="product_application" maxlength="300" placeholder="Application / use" /></label>
-              <label class="field"><span>产品数量</span><input name="product_quantity" maxlength="160" placeholder="Qty / quantity" /></label>
-              <label class="field"><span>产品规格</span><input name="product_specification" maxlength="500" placeholder="Size / specification" /></label>
-              <label class="field"><span>目标价格</span><input name="target_price" maxlength="160" placeholder="Target price / budget" /></label>
-              <label class="field field-wide"><span>其他要求</span><textarea name="other_requirements" rows="3" maxlength="1200" placeholder="包装、合规或其他要求"></textarea></label>
-            </div>
             <section class="bulk-product-section" aria-labelledby="bulk-product-heading">
               <div class="bulk-product-heading-row">
                 <div>
-                  <h3 id="bulk-product-heading">批量产品拆分</h3>
-                  <p class="field-help">一行对应一项产品；两侧缺失时保留空行。可直接复制单列到 Excel。</p>
+                  <h3 id="bulk-product-heading">产品拆分结果</h3>
+                  <p class="field-help">两边一行对应同一项产品，可分别复制整列到 Excel。</p>
                 </div>
                 <div class="bulk-product-meta" aria-live="polite">
                   <strong id="bulk-product-count">未识别产品</strong>
@@ -323,12 +317,12 @@
               </div>
               <div class="bulk-product-grid">
                 <label class="field">
-                  <span>内部编码 <small>一行一个</small></span>
-                  <textarea id="add-product-codes" name="product_codes" rows="6" maxlength="12000" placeholder="SL-001&#10;SL-002"></textarea>
+                  <span>内部编码 <small>一行一个，支持 50 条</small></span>
+                  <textarea id="add-product-codes" name="product_codes" rows="10" maxlength="12000" placeholder="23F0907&#10;FY014866S"></textarea>
                 </label>
                 <label class="field">
-                  <span>批量产品名称 <small>与编码按行对应</small></span>
-                  <textarea id="add-product-names" name="product_names" rows="6" maxlength="12000" placeholder="Rose Fragrance Oil&#10;Jasmine Oil"></textarea>
+                  <span>批量产品名称 <small>支持 50 条，与编码按行对应</small></span>
+                  <textarea id="add-product-names" name="product_names" rows="10" maxlength="12000" placeholder="Miss Dior Blooming Bouquet&#10;Jo Malone Peony &amp; Blush Suede"></textarea>
                 </label>
               </div>
               <div class="bulk-product-actions">
@@ -371,6 +365,40 @@
             <button class="button button-primary" type="submit">创建客户档案</button>
           </div>
         </form>
+      </div>
+    </dialog>
+
+    <dialog id="draft-dialog" class="client-dialog draft-dialog" aria-labelledby="draft-dialog-title">
+      <div class="dialog-frame">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow eyebrow-amber">本机临时保存</p>
+            <h2 id="draft-dialog-title">客户草稿箱</h2>
+          </div>
+          <button id="draft-dialog-close" class="icon-button" type="button" aria-label="关闭草稿箱">×</button>
+        </div>
+        <p class="dialog-intro">草稿只保存在当前浏览器，不会写入客户档案。恢复后可继续编辑。</p>
+        <div id="draft-list" class="draft-list"></div>
+        <div class="dialog-actions">
+          <button id="draft-dialog-done" class="button button-quiet" type="button">关闭</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="draft-confirm-dialog" class="client-dialog confirm-dialog" aria-labelledby="draft-confirm-title">
+      <div class="dialog-frame">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow eyebrow-amber">尚未创建客户</p>
+            <h2 id="draft-confirm-title">保存到草稿箱？</h2>
+          </div>
+        </div>
+        <p class="dialog-intro">当前填写的信息还没有保存。你可以保存为草稿，下次继续编辑。</p>
+        <div class="draft-confirm-actions">
+          <button id="draft-continue-editing" class="button button-quiet" type="button">继续编辑</button>
+          <button id="draft-discard" class="button button-danger" type="button">不保存</button>
+          <button id="draft-save" class="button button-primary" type="button">保存到草稿箱</button>
+        </div>
       </div>
     </dialog>
 

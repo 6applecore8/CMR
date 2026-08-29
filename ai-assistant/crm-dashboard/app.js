@@ -17,7 +17,8 @@
     cold: "冷却",
   };
   const TIER_LABELS = { A: "A · 优先", B: "B · 跟进", C: "C · 观察" };
-  const UI_ERROR_CODES = { bulkCopy: "CRM-BULK-COPY-001" };
+  const UI_ERROR_CODES = { bulkCopy: "CRM-BULK-COPY-001", draft: "CRM-DRAFT-001", productParse: "CRM-PRODUCT-PARSE-001" };
+  const DRAFT_STORAGE_KEY = "scentedland-crm:new-client-drafts:v1";
   const PAGE_SIZE_OPTIONS = Object.freeze([12, 24, 48]);
   const state = {
     clients: [],
@@ -28,6 +29,7 @@
     page: 1,
     pageSize: 12,
   };
+  const draftState = { activeId: null, baseline: "" };
 
   const $ = (selector) => document.querySelector(selector);
   const escapeHtml = (value) => String(value ?? "")
@@ -466,14 +468,172 @@
     return result;
   }
 
+  function readDrafts() {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(DRAFT_STORAGE_KEY) || "[]");
+      return Array.isArray(parsed) ? parsed.filter((draft) => draft && draft.id && draft.data) : [];
+    } catch (_error) {
+      showToast(`草稿箱读取失败（${UI_ERROR_CODES.draft}）`, true);
+      return [];
+    }
+  }
+
+  function writeDrafts(drafts) {
+    try {
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(drafts));
+      return true;
+    } catch (_error) {
+      showToast(`草稿箱保存失败（${UI_ERROR_CODES.draft}）`, true);
+      return false;
+    }
+  }
+
+  function collectDraftData() {
+    const data = formObject($("#add-form"));
+    data.source = state.activeChannel === "alibaba" ? "alibaba" : "email_manual";
+    data.customer_channel = state.activeChannel;
+    return data;
+  }
+
+  function draftFingerprint(data) {
+    const ordered = {};
+    Object.keys(data || {}).sort().forEach((key) => { ordered[key] = String(data[key] ?? ""); });
+    return JSON.stringify(ordered);
+  }
+
+  function captureDraftBaseline() {
+    draftState.baseline = draftFingerprint(collectDraftData());
+  }
+
+  function isAddFormDirty() {
+    return draftFingerprint(collectDraftData()) !== draftState.baseline;
+  }
+
+  function draftDisplayName(draft) {
+    const data = draft.data || {};
+    const firstProduct = String(data.product_names || "").split(/\r?\n/).find((value) => value.trim());
+    return String(data.contact_name || data.company || firstProduct || (draft.channel === "alibaba" ? "未命名阿里客户" : "未命名邮件客户")).trim();
+  }
+
+  function draftProductCount(draft) {
+    const data = draft.data || {};
+    const codes = String(data.product_codes || "").split(/\r?\n/);
+    const names = String(data.product_names || "").split(/\r?\n/);
+    const rows = Math.max(codes.length, names.length);
+    let count = 0;
+    for (let index = 0; index < rows; index += 1) {
+      if (String(codes[index] || "").trim() || String(names[index] || "").trim()) count += 1;
+    }
+    return count;
+  }
+
+  function updateDraftCount() {
+    const count = readDrafts().length;
+    const node = $("#draft-count");
+    if (node) node.textContent = String(count);
+  }
+
+  function renderDrafts() {
+    const list = $("#draft-list");
+    const drafts = readDrafts();
+    updateDraftCount();
+    if (!drafts.length) {
+      list.innerHTML = `<div class="draft-empty"><strong>草稿箱为空</strong><span>退出未完成的新建表单时，可以选择保存到这里。</span></div>`;
+      return;
+    }
+    list.innerHTML = drafts.map((draft) => {
+      const savedAt = new Date(draft.savedAt || Date.now());
+      const savedLabel = Number.isNaN(savedAt.getTime()) ? "时间未知" : savedAt.toLocaleString("zh-CN", { hour12: false });
+      const productCount = draftProductCount(draft);
+      return `<article class="draft-item" data-draft-id="${escapeHtml(draft.id)}">
+        <div class="draft-item-copy">
+          <span class="draft-channel">${draft.channel === "alibaba" ? "阿里客户" : "邮件客户"}</span>
+          <strong>${escapeHtml(draftDisplayName(draft))}</strong>
+          <small>${escapeHtml(savedLabel)}${productCount ? ` · ${productCount} 项产品` : ""}</small>
+        </div>
+        <div class="draft-item-actions">
+          <button class="button button-quiet" type="button" data-draft-action="restore">继续编辑</button>
+          <button class="button button-danger" type="button" data-draft-action="delete">删除</button>
+        </div>
+      </article>`;
+    }).join("");
+  }
+
+  function resetAndCloseAddDialog() {
+    closeDialog($("#draft-confirm-dialog"));
+    closeDialog($("#add-dialog"));
+    $("#add-form").reset();
+    resetProductParser();
+    draftState.activeId = null;
+    draftState.baseline = "";
+  }
+
+  function requestCloseAddDialog() {
+    const dialog = $("#add-dialog");
+    if (!dialog?.open && !dialog?.hasAttribute("open")) return;
+    if (!isAddFormDirty()) {
+      resetAndCloseAddDialog();
+      return;
+    }
+    openDialog($("#draft-confirm-dialog"));
+  }
+
+  function saveCurrentDraft() {
+    const data = collectDraftData();
+    const drafts = readDrafts();
+    const draft = {
+      id: draftState.activeId || `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      channel: state.activeChannel,
+      savedAt: new Date().toISOString(),
+      data,
+    };
+    const nextDrafts = [draft, ...drafts.filter((item) => item.id !== draft.id)];
+    if (!writeDrafts(nextDrafts)) return;
+    resetAndCloseAddDialog();
+    renderDrafts();
+    showToast("未完成信息已保存到草稿箱");
+  }
+
+  function removeActiveDraft() {
+    if (!draftState.activeId) return;
+    const drafts = readDrafts().filter((draft) => draft.id !== draftState.activeId);
+    writeDrafts(drafts);
+    draftState.activeId = null;
+    updateDraftCount();
+  }
+
+  function restoreDraft(draft) {
+    if (!draft) return;
+    closeDialog($("#draft-dialog"));
+    state.activeChannel = draft.channel === "alibaba" ? "alibaba" : "email";
+    state.page = 1;
+    renderChannelTabs();
+    populateFilterOptions();
+    renderStats({});
+    applyFilters();
+    openAddDialog(draft);
+  }
+
+  function handleDraftListClick(event) {
+    const button = event.target.closest("[data-draft-action]");
+    const item = event.target.closest("[data-draft-id]");
+    if (!button || !item) return;
+    const drafts = readDrafts();
+    const draft = drafts.find((candidate) => candidate.id === item.dataset.draftId);
+    if (!draft) return renderDrafts();
+    if (button.dataset.draftAction === "restore") {
+      restoreDraft(draft);
+      return;
+    }
+    if (button.dataset.draftAction === "delete" && window.confirm(`确定删除草稿“${draftDisplayName(draft)}”吗？`)) {
+      if (writeDrafts(drafts.filter((candidate) => candidate.id !== draft.id))) {
+        renderDrafts();
+        showToast("草稿已删除");
+      }
+    }
+  }
+
   const productSplitFields = [
-    "product_name",
-    "fragrance_requirement",
-    "product_application",
-    "product_quantity",
-    "product_specification",
-    "target_price",
-    "other_requirements",
     "product_codes",
     "product_names",
   ];
@@ -515,13 +675,26 @@
     if (status && !status.value) status.value = "new";
   }
 
-  function openAddDialog() {
+  function openAddDialog(draft = null) {
     const form = $("#add-form");
     form.reset();
     resetProductParser();
     setAddFormChannel();
     $("#add-form-error").hidden = true;
     if ([...$("#add-status").options].some((option) => option.value === "new")) $("#add-status").value = "new";
+    draftState.activeId = draft?.id || null;
+    if (draft?.data) {
+      Object.entries(draft.data).forEach(([field, value]) => {
+        const input = form.elements.namedItem(field);
+        if (input && typeof input.value === "string") input.value = String(value ?? "");
+      });
+      const count = draftProductCount(draft);
+      $("#bulk-product-count").textContent = count ? `草稿含 ${count} 项产品` : "草稿暂无产品";
+      $("#bulk-product-pairing-status").textContent = count ? "编码与名称按行对应" : "等待产品原文";
+      $("#add-dialog-title").textContent = state.activeChannel === "alibaba" ? "继续编辑阿里客户草稿" : "继续编辑邮件客户草稿";
+      productParserState.manualInterest = Boolean(String(draft.data.product_interest || "").trim());
+    }
+    captureDraftBaseline();
     openDialog($("#add-dialog"));
     window.setTimeout(() => $("#add-company").focus(), 0);
   }
@@ -567,14 +740,14 @@
         const productInterest = $("#add-form").elements.namedItem("product_interest");
         if (productInterest && !productParserState.manualInterest) {
           const previousInterest = productParserState.suggestedInterest || "";
-          const summary = [fields.product_name, fields.product_application, fields.fragrance_requirement].filter(Boolean).join(" / ").slice(0, 600);
+          const summary = String(fields.product_names || "").split(/\r?\n/).map((value) => value.trim()).filter(Boolean).slice(0, 3).join(" / ").slice(0, 600);
           if (!productInterest.value.trim() || productInterest.value.trim() === previousInterest) productInterest.value = summary;
           productParserState.suggestedInterest = summary;
         }
-        status.textContent = body.matched_fields?.length ? `已建议 ${body.matched_fields.length} 个字段，可继续编辑` : "暂未识别明确字段，可手动填写";
+        status.textContent = bulkItems.length ? `已拆分 ${bulkItems.length} 项产品，请核对两列后分别复制` : "暂未识别产品名称与内部编码，可在两列中手动填写";
       } catch (error) {
         productParserState.applying = false;
-        status.textContent = error.message || "拆分建议暂不可用，可手动填写";
+        status.textContent = `${error.message || "拆分暂不可用"}（${UI_ERROR_CODES.productParse}），仍可手动填写两列`;
       }
     }, 420);
   }
@@ -684,7 +857,7 @@
     data.customer_channel = state.activeChannel;
     if (!data.status) data.status = "new";
     if (state.activeChannel === "alibaba" && !data.product_interest) {
-      const summary = [data.product_name, data.product_application, data.fragrance_requirement].filter(Boolean).join(" / ");
+      const summary = String(data.product_names || "").split(/\r?\n/).map((value) => value.trim()).filter(Boolean).slice(0, 3).join(" / ");
       if (summary) data.product_interest = summary.slice(0, 600);
     }
     if (data.icp_score === "") delete data.icp_score;
@@ -693,10 +866,8 @@
     try {
       await requestJSON("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       showToast("客户已创建，并同步索引与 pipeline");
-      closeDialog($("#add-dialog"));
-      form.reset();
-      $("#add-status").value = "new";
-      resetProductParser();
+      removeActiveDraft();
+      resetAndCloseAddDialog();
       await loadData({ showLoading: false });
     } catch (error) {
       errorNode.textContent = error.message || "创建失败，请稍后重试";
@@ -767,11 +938,18 @@
         applyFilters();
       });
     });
-    $("#add-client-btn").addEventListener("click", openAddDialog);
+    $("#add-client-btn").addEventListener("click", () => openAddDialog());
+    $("#draft-box-btn").addEventListener("click", () => { renderDrafts(); openDialog($("#draft-dialog")); });
+    $("#draft-dialog-close").addEventListener("click", () => closeDialog($("#draft-dialog")));
+    $("#draft-dialog-done").addEventListener("click", () => closeDialog($("#draft-dialog")));
+    $("#draft-list").addEventListener("click", handleDraftListClick);
     $("#dialog-close").addEventListener("click", () => closeDialog($("#client-dialog")));
     $("#detail-close-btn").addEventListener("click", () => closeDialog($("#client-dialog")));
-    $("#add-dialog-close").addEventListener("click", () => closeDialog($("#add-dialog")));
-    $("#add-cancel").addEventListener("click", () => closeModal($("#add-dialog")));
+    $("#add-dialog-close").addEventListener("click", requestCloseAddDialog);
+    $("#add-cancel").addEventListener("click", requestCloseAddDialog);
+    $("#draft-continue-editing").addEventListener("click", () => closeDialog($("#draft-confirm-dialog")));
+    $("#draft-discard").addEventListener("click", resetAndCloseAddDialog);
+    $("#draft-save").addEventListener("click", saveCurrentDraft);
     $("#edit-client-btn").addEventListener("click", showEditForm);
     $("#edit-cancel").addEventListener("click", showDetailView);
     $("#edit-form").addEventListener("submit", submitEdit);
@@ -789,22 +967,34 @@
     if (productInterestInput) productInterestInput.addEventListener("input", () => {
       if (!productParserState.applying) productParserState.manualInterest = true;
     });
-    [$("#client-dialog"), $("#add-dialog")].forEach((dialog) => dialog.addEventListener("click", (event) => { if (event.target === dialog) closeDialog(dialog); }));
+    [$("#client-dialog"), $("#draft-dialog")].forEach((dialog) => dialog.addEventListener("click", (event) => { if (event.target === dialog) closeDialog(dialog); }));
+    $("#add-dialog").addEventListener("click", (event) => { if (event.target === event.currentTarget) requestCloseAddDialog(); });
+    $("#add-dialog").addEventListener("cancel", (event) => { event.preventDefault(); requestCloseAddDialog(); });
+    $("#draft-confirm-dialog").addEventListener("cancel", (event) => { event.preventDefault(); closeDialog(event.currentTarget); });
     document.addEventListener("keydown", (event) => {
       if (event.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName || "")) {
         event.preventDefault();
         $("#search-input").focus();
       }
       if (event.key === "Escape") {
-        // 原生 dialog 已处理 Escape；非原生 fallback 也要能关闭。
+        if ($("#draft-confirm-dialog").open) {
+          event.preventDefault();
+          closeDialog($("#draft-confirm-dialog"));
+          return;
+        }
+        if ($("#add-dialog").open) {
+          event.preventDefault();
+          requestCloseAddDialog();
+          return;
+        }
         if ($("#client-dialog").open) closeDialog($("#client-dialog"));
-        if ($("#add-dialog").open) closeDialog($("#add-dialog"));
       }
     });
   }
 
   document.addEventListener("DOMContentLoaded", () => {
     bindEvents();
+    updateDraftCount();
     loadData();
   });
 })();

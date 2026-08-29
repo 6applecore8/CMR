@@ -305,6 +305,188 @@ Qty: 25kg for soap"""
         self.assertEqual(quantity_only["product_codes"], "")
         self.assertEqual(quantity_only["product_names"], "")
 
+    def test_bulk_product_parser_supports_18_name_first_rows_with_parenthetical_code_notes(self) -> None:
+        raw = """1\tDior Miss Dior Blooming Bouquet\t23F0907\t$84.48\t2026.04.07
+2\tChanel Chance Eau Tendre EDT（粉邂逅）\tFY017391\t$107.46\t2025.01.15
+4\tMarc Jacobs Daisy EDT ⚠️\t24F0342（雏菊通用款）\t$26.42\t2025.08.28
+5\tVersace Bright Crystal EDT（粉钻）\t22F0801\t$78.36\t2025.03.27
+6\tChloé Chloé EDP（肉丝带）\t25F0608\t$85.07\t2025.09.09
+7\tJo Malone Peony & Blush Suede ⚠️\tFY014866S\t无价\t—
+8\tJo Malone English Pear & Freesia\tFY014866E\t$35.22\t2025.10.21
+9\tGucci Flora Gorgeous Gardenia ⚠️\t24F0707（花悦 Bloom）\t$121.19\t2026.07.01
+11\tVS Bombshell\t22F1009（另 FY024006 $29.85）\t—\t—
+12\tPDM Delina\t26F0311\t$89.55\t2026.04.03
+13\tDior J'adore EDP（真我）\tFY017389\t$169.10\t2026.05.21
+14\tGucci Bloom EDP\t24F0707\t$121.19\t2026.07.01
+15\tPrada Paradoxe EDP\t26F0416\t$141.79\t2026.04.30
+16\tYSL Libre EDP（肆意之水）\t20F0822\t$152.24\t2026.04.23
+17\tDior Miss Dior EDP\t23F0845\t$132.09\t2025.12.04
+22\tLancôme La Vie Est Belle EDP\tFY017189\t$68.06\t2026.05.12
+23\tViktor&Rolf Flowerbomb EDP\t22F0532\t$105.97\t2025.03.18
+27\tChanel Chance Eau Fraîche EDT（绿邂逅）\t24F0621\t$141.04\t2025.10.27"""
+        expected_items = [
+            {"code": "23F0907", "name": "Dior Miss Dior Blooming Bouquet"},
+            {"code": "FY017391", "name": "Chanel Chance Eau Tendre EDT（粉邂逅）"},
+            {"code": "24F0342", "name": "Marc Jacobs Daisy EDT"},
+            {"code": "22F0801", "name": "Versace Bright Crystal EDT（粉钻）"},
+            {"code": "25F0608", "name": "Chloé Chloé EDP（肉丝带）"},
+            {"code": "FY014866S", "name": "Jo Malone Peony & Blush Suede"},
+            {"code": "FY014866E", "name": "Jo Malone English Pear & Freesia"},
+            {"code": "24F0707", "name": "Gucci Flora Gorgeous Gardenia"},
+            {"code": "22F1009", "name": "VS Bombshell"},
+            {"code": "26F0311", "name": "PDM Delina"},
+            {"code": "FY017389", "name": "Dior J'adore EDP（真我）"},
+            {"code": "24F0707", "name": "Gucci Bloom EDP"},
+            {"code": "26F0416", "name": "Prada Paradoxe EDP"},
+            {"code": "20F0822", "name": "YSL Libre EDP（肆意之水）"},
+            {"code": "23F0845", "name": "Dior Miss Dior EDP"},
+            {"code": "FY017189", "name": "Lancôme La Vie Est Belle EDP"},
+            {"code": "22F0532", "name": "Viktor&Rolf Flowerbomb EDP"},
+            {"code": "24F0621", "name": "Chanel Chance Eau Fraîche EDT（绿邂逅）"},
+        ]
+        parsed = server.parse_product_info(raw)
+        code_lines = parsed["product_codes"].splitlines()
+        name_lines = parsed["product_names"].splitlines()
+
+        self.assertEqual(len(parsed["product_items"]), 18)
+        self.assertEqual(len(code_lines), 18)
+        self.assertEqual(len(name_lines), 18)
+        self.assertEqual(parsed["product_items"], expected_items)
+        self.assertEqual(code_lines, [item["code"] for item in expected_items])
+        self.assertEqual(name_lines, [item["name"] for item in expected_items])
+        self.assertEqual(parsed["product_items"][2], {"code": "24F0342", "name": "Marc Jacobs Daisy EDT"})
+        self.assertEqual(parsed["product_items"][7], {"code": "24F0707", "name": "Gucci Flora Gorgeous Gardenia"})
+        self.assertEqual(parsed["product_items"][8], {"code": "22F1009", "name": "VS Bombshell"})
+        self.assertNotIn("FY024006", parsed["product_codes"])
+        self.assertNotIn("$29.85", parsed["product_codes"])
+
+    def test_tabular_product_parser_strips_half_width_parenthetical_code_notes(self) -> None:
+        parsed = server.parse_product_info("1\tHalf Width Sample\tHW001 (备用 HW002 $1.00)\t$2.00\t2026.01.01")
+        self.assertEqual(parsed["product_items"], [{"code": "HW001", "name": "Half Width Sample"}])
+        self.assertNotIn("HW002", parsed["product_codes"])
+
+    def test_bulk_product_parser_splits_name_first_alibaba_sample_into_15_rows(self) -> None:
+        raw = """1      Miss Dior Blooming Bouquet\t23F0907\t✅
+2\tChanel Chance Eau Tendre\tFY017391\t✅
+3\tMarc Jacobs Daisy\t24F0342\t✅（雏菊通用款）
+4\tVersace Bright Crystal\t22F0801\t✅
+5\tJo Malone Peony & Blush Suede\tFY014866S\t⚠️ 有码无价
+6\tJo Malone English Pear & Freesia\tFY01 4866E\t✅
+7\tGucci Flora Gorgeous Gardenia\t24F0707\t✅（花悦 Bloom 顶）
+8\tMiss Dior Chérie Blooming Bouquet 2007\tFY017328\t✅（2007 初代经典版，≠#1 的 2023 版）
+9\tVS Bombshell\t22F1009\t✅（另有 FY024006）
+10\tPDM Delina\t26F0311\t✅
+11\tDior J'adore\tFY017389\t✅
+12\tGucci Bloom\t24F0707\t✅
+13\tPrada Paradoxe\t26F0416\t✅
+14\tYSL Libre\t20F0822\t✅
+15\tDior Miss Dior\t23F0845\t✅"""
+        expected_names = [
+            "Miss Dior Blooming Bouquet",
+            "Chanel Chance Eau Tendre",
+            "Marc Jacobs Daisy",
+            "Versace Bright Crystal",
+            "Jo Malone Peony & Blush Suede",
+            "Jo Malone English Pear & Freesia",
+            "Gucci Flora Gorgeous Gardenia",
+            "Miss Dior Chérie Blooming Bouquet 2007",
+            "VS Bombshell",
+            "PDM Delina",
+            "Dior J'adore",
+            "Gucci Bloom",
+            "Prada Paradoxe",
+            "YSL Libre",
+            "Dior Miss Dior",
+        ]
+        expected_codes = [
+            "23F0907", "FY017391", "24F0342", "22F0801", "FY014866S",
+            "FY01 4866E", "24F0707", "FY017328", "22F1009", "26F0311",
+            "FY017389", "24F0707", "26F0416", "20F0822", "23F0845",
+        ]
+        parsed = server.parse_product_info(raw)
+        self.assertEqual(len(parsed["product_items"]), 15)
+        self.assertEqual(parsed["product_names"].splitlines(), expected_names)
+        self.assertEqual(parsed["product_codes"].splitlines(), expected_codes)
+        self.assertEqual(parsed["product_items"][4], {"code": "FY014866S", "name": "Jo Malone Peony & Blush Suede"})
+        self.assertEqual(parsed["product_items"][5], {"code": "FY01 4866E", "name": "Jo Malone English Pear & Freesia"})
+        self.assertNotIn("FY024006", parsed["product_codes"])
+        self.assertNotRegex(parsed["product_names"], r"✅|⚠|（|\(")
+        self.assertNotRegex(parsed["product_codes"], r"✅|⚠|（|\(")
+
+    def test_bulk_product_parser_supports_50_name_first_alibaba_rows(self) -> None:
+        raw = "\n".join(
+            f"{index}\tAroma Blend {index:02d}\tALI-{index:04d}\t✅"
+            for index in range(1, 51)
+        )
+        expected_items = [
+            {"code": f"ALI-{index:04d}", "name": f"Aroma Blend {index:02d}"}
+            for index in range(1, 51)
+        ]
+        parsed = server.parse_product_info(raw)
+        code_lines = parsed["product_codes"].splitlines()
+        name_lines = parsed["product_names"].splitlines()
+        self.assertEqual(len(parsed["product_items"]), 50)
+        self.assertEqual(len(code_lines), 50)
+        self.assertEqual(len(name_lines), 50)
+        self.assertEqual(parsed["product_items"], expected_items)
+        self.assertEqual(code_lines, [item["code"] for item in expected_items])
+        self.assertEqual(name_lines, [item["name"] for item in expected_items])
+        self.assertEqual(parsed["product_items"][0], expected_items[0])
+        self.assertEqual(parsed["product_items"][-1], expected_items[-1])
+
+    def test_bulk_product_parser_keeps_all_18_rows_with_annotated_codes(self) -> None:
+        raw = """1\tDior Miss Dior Blooming Bouquet\t23F0907\t$84.48\t2026.04.07
+2\tChanel Chance Eau Tendre EDT（粉邂逅）\tFY017391\t$107.46\t2025.01.15
+4\tMarc Jacobs Daisy EDT ⚠️\t24F0342（雏菊通用款）\t$26.42\t2025.08.28
+5\tVersace Bright Crystal EDT（粉钻）\t22F0801\t$78.36\t2025.03.27
+6\tChloé Chloé EDP（肉丝带）\t25F0608\t$85.07\t2025.09.09
+7\tJo Malone Peony & Blush Suede ⚠️\tFY014866S\t无价\t—
+8\tJo Malone English Pear & Freesia\tFY014866E\t$35.22\t2025.10.21
+9\tGucci Flora Gorgeous Gardenia ⚠️\t24F0707（花悦 Bloom）\t$121.19\t2026.07.01
+11\tVS Bombshell\t22F1009（另 FY024006 $29.85）\t—\t—
+12\tPDM Delina\t26F0311\t$89.55\t2026.04.03
+13\tDior J'adore EDP（真我）\tFY017389\t$169.10\t2026.05.21
+14\tGucci Bloom EDP\t24F0707\t$121.19\t2026.07.01
+15\tPrada Paradoxe EDP\t26F0416\t$141.79\t2026.04.30
+16\tYSL Libre EDP（肆意之水）\t20F0822\t$152.24\t2026.04.23
+17\tDior Miss Dior EDP\t23F0845\t$132.09\t2025.12.04
+22\tLancôme La Vie Est Belle EDP\tFY017189\t$68.06\t2026.05.12
+23\tViktor&Rolf Flowerbomb EDP\t22F0532\t$105.97\t2025.03.18
+27\tChanel Chance Eau Fraîche EDT（绿邂逅）\t24F0621\t$141.04\t2025.10.27"""
+        expected_codes = [
+            "23F0907", "FY017391", "24F0342", "22F0801", "25F0608", "FY014866S",
+            "FY014866E", "24F0707", "22F1009", "26F0311", "FY017389", "24F0707",
+            "26F0416", "20F0822", "23F0845", "FY017189", "22F0532", "24F0621",
+        ]
+        expected_names = [
+            "Dior Miss Dior Blooming Bouquet",
+            "Chanel Chance Eau Tendre EDT（粉邂逅）",
+            "Marc Jacobs Daisy EDT",
+            "Versace Bright Crystal EDT（粉钻）",
+            "Chloé Chloé EDP（肉丝带）",
+            "Jo Malone Peony & Blush Suede",
+            "Jo Malone English Pear & Freesia",
+            "Gucci Flora Gorgeous Gardenia",
+            "VS Bombshell",
+            "PDM Delina",
+            "Dior J'adore EDP（真我）",
+            "Gucci Bloom EDP",
+            "Prada Paradoxe EDP",
+            "YSL Libre EDP（肆意之水）",
+            "Dior Miss Dior EDP",
+            "Lancôme La Vie Est Belle EDP",
+            "Viktor&Rolf Flowerbomb EDP",
+            "Chanel Chance Eau Fraîche EDT（绿邂逅）",
+        ]
+        parsed = server.parse_product_info(raw)
+        self.assertEqual(len(parsed["product_items"]), 18)
+        self.assertEqual(parsed["product_codes"].splitlines(), expected_codes)
+        self.assertEqual(parsed["product_names"].splitlines(), expected_names)
+        self.assertEqual(parsed["product_items"][2], {"code": "24F0342", "name": "Marc Jacobs Daisy EDT"})
+        self.assertEqual(parsed["product_items"][7], {"code": "24F0707", "name": "Gucci Flora Gorgeous Gardenia"})
+        self.assertEqual(parsed["product_items"][8], {"code": "22F1009", "name": "VS Bombshell"})
+        self.assertNotIn("FY024006", parsed["product_codes"])
+
     def test_bulk_product_fields_persist_on_markdown_reread_and_csv(self) -> None:
         store = server.CRMStore(self.root)
         created = store.create_client({"channel": "alibaba", "product_raw": "SL-001 | Rose Oil\nSL-002 | Jasmine Oil"})
@@ -343,6 +525,11 @@ Qty: 25kg for soap"""
         css = (HERE / "styles.css").read_text(encoding="utf-8")
         for marker in ('id="add-product-codes" name="product_codes"', 'id="add-product-names" name="product_names"', 'id="copy-product-codes"', 'id="copy-product-names"'):
             self.assertIn(marker, index_html)
+        self.assertIn("一次支持识别 50 条产品", index_html)
+        self.assertIn('id="add-product-codes" name="product_codes" rows="10"', index_html)
+        self.assertIn('id="add-product-names" name="product_names" rows="10"', index_html)
+        for removed_field in ("fragrance_requirement", "product_application", "product_quantity", "product_specification", "target_price", "other_requirements"):
+            self.assertNotIn(f'name="{removed_field}"', index_html)
         self.assertIn('"product_codes",', app_js)
         self.assertIn('"product_names",', app_js)
         self.assertIn('navigator.clipboard', app_js)
@@ -352,6 +539,31 @@ Qty: 25kg for soap"""
         self.assertIn('if (!productParserState.manual.has(field)) input.value = suggestion;', app_js)
         self.assertIn("bulk-product-grid", css)
         self.assertIn("@media (max-width: 720px)", css)
+
+    def test_frontend_draft_box_and_guarded_close_are_static(self) -> None:
+        index_html = (HERE / "index.html").read_text(encoding="utf-8")
+        app_js = (HERE / "app.js").read_text(encoding="utf-8")
+        for marker in (
+            'id="draft-box-btn"',
+            'id="draft-count"',
+            'id="draft-dialog"',
+            'id="draft-list"',
+            'id="draft-confirm-dialog"',
+            'id="draft-save"',
+            'id="draft-discard"',
+            'id="draft-continue-editing"',
+        ):
+            self.assertIn(marker, index_html)
+        self.assertIn('const DRAFT_STORAGE_KEY = "scentedland-crm:new-client-drafts:v1";', app_js)
+        for function_name in ("readDrafts", "writeDrafts", "saveCurrentDraft", "restoreDraft", "requestCloseAddDialog"):
+            self.assertIn(f"function {function_name}", app_js)
+        self.assertIn('$("#add-dialog-close").addEventListener("click", requestCloseAddDialog);', app_js)
+        self.assertIn('$("#add-cancel").addEventListener("click", requestCloseAddDialog);', app_js)
+        self.assertIn('$("#add-dialog").addEventListener("cancel"', app_js)
+        self.assertIn('if ($("#add-dialog").open)', app_js)
+        self.assertIn("event.preventDefault();\n          requestCloseAddDialog();", app_js)
+        self.assertIn("window.confirm", app_js)
+        self.assertIn("removeActiveDraft();", app_js)
 
     def test_copy_normalization_keeps_blank_rows_static_contract(self) -> None:
         app_js = (HERE / "app.js").read_text(encoding="utf-8")
@@ -498,7 +710,7 @@ class HttpApiTests(unittest.TestCase):
                 app_js = (HERE / "app.js").read_text(encoding="utf-8")
                 self.assertIn('id="add-cancel"', index_html)
                 self.assertIn('function closeModal(dialog)', app_js)
-                self.assertIn('$("#add-cancel").addEventListener("click", () => closeModal($("#add-dialog")));', app_js)
+                self.assertIn('$("#add-cancel").addEventListener("click", requestCloseAddDialog);', app_js)
                 self.assertIn('id="channel-alibaba"', index_html)
                 self.assertIn('id="channel-email"', index_html)
                 self.assertIn('id="product-parser-fields"', index_html)
