@@ -1,5 +1,9 @@
 # 客户 CRM 看板
 
+## Agent 接手前置阅读
+
+本目录有强制 A2A 接手门禁。任何 Agent 必须先完整阅读 `A2A_HANDOFF.md`、`logs/a2a-task-updates.jsonl` 和 `A2A_HANDOFF_INDEX.json`，输出当前状态/完成项/未完成项或已知问题/最新错误码/下一步/回滚入口摘要，并追加 `a2a.handoff_read_confirmed` 日志后，才能编写代码或需求。目录级 `AGENTS.md` 会重复并强制这一规则；最新日志为 `blocked` 或 `failed` 时必须先定位和记录错误。
+
 这是一个仅本机使用的客户管理页面，运行时不需要 npm 或额外的 pip 包。后端使用 Python 标准库 HTTP 服务，前端使用原生 HTML/CSS/JavaScript。
 
 ## 启动
@@ -84,6 +88,7 @@ Alibaba CSV 列顺序固定为：ID、姓名、公司、地址、电话、邮箱
 | `CRM-LAUNCH-001` | 启动器配置或预检失败（项目/Python/日志准备） |
 | `CRM-LAUNCH-002` | Python CRM 服务进程无法启动或启动后退出 |
 | `CRM-LAUNCH-003` | 8765 端口或健康检查失败/超时 |
+| `CRM-GIT-001` | GitHub 获取或推送连接失败；记录网络错误和安全重试状态，不执行强制推送 |
 
 所有 API 错误响应都带 `error_code`，前端会把可读错误显示在 Toast 或错误状态中。日志文件属于运行数据，不应手动编辑；服务重启会继续追加。
 

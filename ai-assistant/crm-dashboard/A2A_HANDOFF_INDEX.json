@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "handoff_id": "crm-dashboard-2026-08-29",
+  "read_before_work": [
+    "A2A_HANDOFF.md",
+    "logs/a2a-task-updates.jsonl",
+    "A2A_HANDOFF_INDEX.json"
+  ],
+  "required_handoff_summary": [
+    "current_status",
+    "completed_items",
+    "pending_items_or_known_issues",
+    "latest_error_code",
+    "next_action",
+    "rollback_reference"
+  ],
+  "start_condition": "Only after the three files above are read and the handoff summary is understood.",
+  "latest_log_event": "git_push.connection_failed",
+  "latest_log_status": "retrying",
+  "latest_error_code": "CRM-GIT-001",
+  "latest_validation_event": "browser_qa.responsive_and_console_passed",
+  "latest_validation_status": "passed",
+  "handoff_confirmation_event": "a2a.handoff_read_confirmed",
+  "rollback_reference": "A2A_HANDOFF.md#回滚指引",
+  "sensitive_data_policy": "Do not write customer raw text, email, phone, address, notes, or complete Markdown into handoff logs."
+}

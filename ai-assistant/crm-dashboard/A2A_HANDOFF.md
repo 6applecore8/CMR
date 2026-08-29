@@ -1,7 +1,19 @@
 # CRM Dashboard · A2A 交接状态
 
-更新时间：2026-08-28
-状态：批量产品编码/名称隔离与客户卡片分页已实现；分页 P2 已修复，待主 Agent Browser 补验（保留此前浏览器连接中断与 P2 历史记录）
+更新时间：2026-08-29
+状态：已完成批量产品编码/名称隔离、客户卡片分页、响应式布局与最终 Browser 验收；可按交接门禁接手
+
+## 接手门禁（A2A_HANDOFF_INDEX）
+
+任何 Agent 接手本目录任务时，必须先完整阅读以下文件，再开始编写代码、修改需求或运行会改变客户数据的操作：
+
+1. `A2A_HANDOFF.md`（本文件，先了解目标、完成项、风险与回滚步骤）。
+2. `logs/a2a-task-updates.jsonl`（逐行了解任务过程、错误码、阻塞记录和最新状态）。
+3. `A2A_HANDOFF_INDEX.json`（机器可读的阅读顺序、接手条件和最新日志索引）。
+
+阅读后必须先形成接手摘要：当前状态、已完成项、未完成项/已知问题、最新错误码、下一步和回滚入口。只有确认最新日志事件为 `status=passed` 或明确的 `in_progress` 且任务目标已理解，才能进行代码或需求编写；若最新事件为 `blocked`/`failed`，应先定位错误并追加日志，不得绕过门禁直接改代码。接手确认应追加一条不含客户原文、联系方式或备注的 JSONL 记录，事件名使用 `a2a.handoff_read_confirmed`。
+
+该门禁由目录级 `AGENTS.md` 强制执行；`A2A_HANDOFF_INDEX.json` 是索引标记，不替代本文件和完整日志阅读。
 
 ## 当前状态
 
@@ -69,7 +81,7 @@
 
 ## 稳定错误码
 
-`CRM-OK-001`、`CRM-STARTUP-001`、`CRM-REQUEST-001`、`CRM-VALIDATION-001`、`CRM-PARSE-001`、`CRM-LOAD-001`、`CRM-WRITE-001`、`CRM-NOTFOUND-001`、`CRM-API-001`、`CRM-PRODUCT-PARSE-001`、`CRM-BULK-PRODUCT-PARSE-001`、`CRM-BULK-COPY-001`、`CRM-PAGINATION-001`、`CRM-UI-001`、`CRM-LAUNCH-001`、`CRM-LAUNCH-002`、`CRM-LAUNCH-003`、`CRM-UNEXPECTED-001`。含义及 API 行为详见 `README.md`。
+`CRM-OK-001`、`CRM-STARTUP-001`、`CRM-REQUEST-001`、`CRM-VALIDATION-001`、`CRM-PARSE-001`、`CRM-LOAD-001`、`CRM-WRITE-001`、`CRM-NOTFOUND-001`、`CRM-API-001`、`CRM-PRODUCT-PARSE-001`、`CRM-BULK-PRODUCT-PARSE-001`、`CRM-BULK-COPY-001`、`CRM-PAGINATION-001`、`CRM-UI-001`、`CRM-LAUNCH-001`、`CRM-LAUNCH-002`、`CRM-LAUNCH-003`、`CRM-GIT-001`、`CRM-UNEXPECTED-001`。含义及 API 行为详见 `README.md`。
 
 ## 已知问题 / 审核注意
 
