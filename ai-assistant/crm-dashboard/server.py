@@ -1310,7 +1310,7 @@ def validate_client_payload(
     if creating:
         data["company"] = _validate_text("company", data.get("company"), 200, required=channel != "alibaba")
     elif "company" in data:
-        data["company"] = _validate_text("company", data["company"], 200, required=True)
+        data["company"] = _validate_text("company", data["company"], 200, required=channel != "alibaba")
     text_limits = {
         "contact_name": 160,
         "title": 120,

@@ -224,6 +224,77 @@ class MergeAndPersistenceTests(unittest.TestCase):
         self.assertEqual(refreshed["target_price"], "USD 18/kg")
         self.assertEqual(refreshed["product_quantity"], "25kg")
 
+    def test_edit_updates_key_customer_and_manual_product_fields_together(self) -> None:
+        store = server.CRMStore(self.root)
+        created = store.create_client(
+            {
+                "channel": "email",
+                "company": "Original Company",
+                "contact_name": "Original Contact",
+                "product_raw": "OLD-001 | Original Product",
+            }
+        )
+        updated = store.update_client(
+            created["client_id"],
+            {
+                "company": "Updated Company",
+                "contact_name": "Updated Contact",
+                "title": "Purchasing Manager",
+                "country_region": "France",
+                "address": "Line 1\nLine 2",
+                "market_bucket": "EU_US",
+                "channel_type": "brand",
+                "known_email": "buyer@example.com",
+                "known_phone": "+33 100000000",
+                "product_interest": "Updated fragrance collection",
+                "product_raw": "Raw text changed without automatic overwrite",
+                "product_codes": "MAN-001\nMAN-002",
+                "product_names": "Manual Product One\nManual Product Two",
+                "icp_tier": "A",
+                "icp_score": "88",
+                "status": "replied",
+                "next_action": "Confirm sample list",
+                "notes": "Updated safely in temporary test data",
+            },
+        )
+        self.assertEqual(updated["display_name"], "Updated Company")
+        self.assertEqual(updated["contact_name"], "Updated Contact")
+        self.assertEqual(updated["address"], "Line 1\nLine 2")
+        self.assertEqual(updated["known_email"], "buyer@example.com")
+        self.assertEqual(updated["product_codes"], "MAN-001\nMAN-002")
+        self.assertEqual(updated["product_names"], "Manual Product One\nManual Product Two")
+        self.assertEqual(
+            updated["product_items"],
+            [
+                {"code": "MAN-001", "name": "Manual Product One"},
+                {"code": "MAN-002", "name": "Manual Product Two"},
+            ],
+        )
+        rescanned = {item["client_id"]: item for item in store.list_clients()}[created["client_id"]]
+        self.assertEqual(rescanned["company"], "Updated Company")
+        self.assertEqual(rescanned["address"], "Line 1\nLine 2")
+        self.assertEqual(rescanned["product_codes"], "MAN-001\nMAN-002")
+        self.assertEqual(rescanned["product_names"], "Manual Product One\nManual Product Two")
+
+    def test_edit_allows_alibaba_customer_to_keep_company_empty(self) -> None:
+        store = server.CRMStore(self.root)
+        created = store.create_client({"channel": "alibaba", "contact_name": "Initial Contact"})
+        updated = store.update_client(
+            created["client_id"],
+            {
+                "company": "",
+                "contact_name": "Updated Contact",
+                "address": "Updated address",
+                "product_codes": "ALI-001",
+                "product_names": "Updated Product",
+                "status": "researched",
+            },
+        )
+        self.assertEqual(updated["company"], "")
+        self.assertEqual(updated["display_name"], "Updated Contact")
+        self.assertEqual(updated["address"], "Updated address")
+        self.assertEqual(updated["product_items"], [{"code": "ALI-001", "name": "Updated Product"}])
+
     def test_product_parser_supports_bilingual_labels_and_heuristics(self) -> None:
         labeled = server.parse_product_info("Product: Rose Oil, Scent: fresh rose; Application: candle; Qty: 250 kg; Size: 10ml; Target price: USD 8/kg; Requirement: IFRA")
         self.assertEqual(labeled["product_name"], "Rose Oil")
@@ -539,6 +610,38 @@ Qty: 25kg for soap"""
         self.assertIn('if (!productParserState.manual.has(field)) input.value = suggestion;', app_js)
         self.assertIn("bulk-product-grid", css)
         self.assertIn("@media (max-width: 720px)", css)
+
+    def test_frontend_edit_form_exposes_key_and_product_fields(self) -> None:
+        index_html = (HERE / "index.html").read_text(encoding="utf-8")
+        app_js = (HERE / "app.js").read_text(encoding="utf-8")
+        for marker in (
+            'id="edit-company" name="company"',
+            'id="edit-contact-name" name="contact_name"',
+            'id="edit-title" name="title"',
+            'id="edit-country-region" name="country_region"',
+            'id="edit-address" name="address"',
+            'id="edit-known-email" name="known_email"',
+            'id="edit-known-phone" name="known_phone"',
+            'id="edit-product-interest" name="product_interest"',
+            'id="edit-product-raw" name="product_raw"',
+            'id="edit-product-codes" name="product_codes"',
+            'id="edit-product-names" name="product_names"',
+            'id="edit-parse-products"',
+            'id="edit-product-parse-status"',
+            'id="edit-icp-tier" name="icp_tier"',
+            'id="edit-icp-score" name="icp_score"',
+        ):
+            self.assertIn(marker, index_html)
+        self.assertIn("编辑客户信息", index_html)
+        self.assertIn("保存客户资料", index_html)
+        self.assertIn('"product_codes", "product_names", "icp_tier", "icp_score", "status"', app_js)
+        self.assertIn('$("#edit-company").required = !isAlibaba;', app_js)
+        self.assertIn('channelOf(client) === "email" && !payload.company', app_js)
+        self.assertIn('payload.icp_score === ""', app_js)
+        self.assertIn("async function parseEditProducts()", app_js)
+        self.assertIn('$("#edit-product-codes").value = String(fields.product_codes || "");', app_js)
+        self.assertIn('$("#edit-product-names").value = String(fields.product_names || "");', app_js)
+        self.assertIn('$("#edit-parse-products").addEventListener("click", parseEditProducts);', app_js)
 
     def test_frontend_draft_box_and_guarded_close_are_static(self) -> None:
         index_html = (HERE / "index.html").read_text(encoding="utf-8")

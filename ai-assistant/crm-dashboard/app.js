@@ -442,13 +442,28 @@
   function showEditForm() {
     const client = state.clients.find((item) => item.client_id === state.selectedClientId);
     if (!client) return;
-    $("#edit-status").value = client.status || "new";
-    $("#edit-next-action").value = client.next_action || "";
-    $("#edit-notes").value = client.notes || "";
+    const editFields = [
+      "company", "contact_name", "title", "country_region", "address", "market_bucket",
+      "channel_type", "known_email", "known_phone", "product_interest", "product_raw",
+      "product_codes", "product_names", "icp_tier", "icp_score", "status", "next_action", "notes",
+    ];
+    const form = $("#edit-form");
+    editFields.forEach((field) => {
+      const input = form.elements.namedItem(field);
+      if (!input) return;
+      if (field === "status") input.value = client.status || "new";
+      else if (field === "icp_tier") input.value = client.icp_tier || "C";
+      else if (field === "icp_score") input.value = Number.isFinite(Number(client.icp_score)) ? String(client.icp_score) : "0";
+      else input.value = client[field] || "";
+    });
+    const isAlibaba = channelOf(client) === "alibaba";
+    $("#edit-company").required = !isAlibaba;
+    $("#edit-company-label").textContent = isAlibaba ? "公司名称" : "公司名称 *";
+    $("#edit-product-parse-status").textContent = "手工编码和名称不会被自动覆盖";
     $("#detail-view").hidden = true;
     $("#detail-actions").hidden = true;
-    $("#edit-form").hidden = false;
-    window.setTimeout(() => $("#edit-status").focus(), 0);
+    form.hidden = false;
+    window.setTimeout(() => $("#edit-contact-name").focus(), 0);
   }
 
   function showDetailView() {
@@ -826,7 +841,11 @@
   async function submitEdit(event) {
     event.preventDefault();
     const payload = formObject(event.currentTarget);
+    const client = state.clients.find((item) => item.client_id === state.selectedClientId);
+    if (!client) return showToast("当前客户不存在，请刷新后重试", true);
+    if (channelOf(client) === "email" && !payload.company) return showToast("邮件客户必须填写公司名称", true);
     if (!payload.status) return showToast("请选择客户状态", true);
+    if (payload.icp_score === "") payload.icp_score = "0";
     const button = event.currentTarget.querySelector("button[type=submit]");
     button.disabled = true;
     try {
@@ -836,6 +855,34 @@
       await loadData({ showLoading: false });
     } catch (error) {
       showToast(error.message || "保存失败", true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function parseEditProducts() {
+    const raw = $("#edit-product-raw").value.trim();
+    const status = $("#edit-product-parse-status");
+    if (!raw) {
+      status.textContent = "请先填写产品原文";
+      return;
+    }
+    const button = $("#edit-parse-products");
+    button.disabled = true;
+    status.textContent = "正在重新识别…";
+    try {
+      const body = await requestJSON("/api/product-info/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ raw_text: raw }),
+      });
+      const fields = body.fields || body;
+      $("#edit-product-codes").value = String(fields.product_codes || "");
+      $("#edit-product-names").value = String(fields.product_names || "");
+      const count = Array.isArray(fields.product_items) ? fields.product_items.length : 0;
+      status.textContent = count ? `已重新拆分 ${count} 项产品，请核对后保存` : "未识别出编码和名称，可继续手工编辑";
+    } catch (error) {
+      status.textContent = `${error.message || "重新拆分失败"}（${UI_ERROR_CODES.productParse}）`;
     } finally {
       button.disabled = false;
     }
@@ -953,6 +1000,7 @@
     $("#edit-client-btn").addEventListener("click", showEditForm);
     $("#edit-cancel").addEventListener("click", showDetailView);
     $("#edit-form").addEventListener("submit", submitEdit);
+    $("#edit-parse-products").addEventListener("click", parseEditProducts);
     $("#add-form").addEventListener("submit", submitNew);
     $("#add-product-raw").addEventListener("input", scheduleProductParse);
     $("#copy-product-codes").addEventListener("click", () => copyProductColumn("product_codes", "内部编码"));

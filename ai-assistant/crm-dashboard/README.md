@@ -36,6 +36,8 @@ python "D:\ai文件\llmwiki-study\ai-assistant\crm-dashboard\server.py"
 
 同一 `client_id` 的客户详情以档案为主；索引补齐缺失字段；pipeline 的 `status`、`next_action`、`updated` 作为当前跟进面最新值。新增或编辑会同步回上述 Markdown 文件，不会建立第二套数据库。更新档案时只修改目标字段和 `## Notes`，保留 Outreach Log 等无关段落。
 
+客户详情中的“编辑客户信息”现可修改公司、联系人姓名、职位、地区、地址、市场、渠道类型、邮箱、电话、等级、分数、状态、下一步行动和备注；产品区域可修改产品摘要、产品原文、内部编码与产品名称。编码/名称默认保留手工值，只有点击“根据原文重新拆分”才会用解析结果刷新两列。邮件客户仍要求公司名称，Alibaba 客户允许公司暂时为空。
+
 页面按 `source` 自动分成两个板块：含 `alibaba` 或“阿里”的来源归入“阿里客户”，其余归入“邮件客户”。板块标签会显示数量，并独立作用于统计、搜索和筛选；邮件客户新建固定写入 `source=email_manual`，阿里客户新建固定写入 `source=alibaba`。阿里客户允许所有表单字段为空，空表单也会生成安全唯一 ID，并以“未命名阿里客户”作为显示名兜底；邮件客户仍要求公司名称。
 
 新增客户表单提供本机草稿箱。表单发生实际改动后，通过右上角关闭、取消、遮罩或 Escape 退出都会先询问“继续编辑 / 不保存 / 保存到草稿箱”；草稿可浏览、恢复、更新和确认删除，恢复不会创建客户，正式创建成功后会移除对应草稿。草稿只写入当前浏览器的 `localStorage`，不进入 `clients`、索引、pipeline 或结构化运行日志（`CRM-DRAFT-001`）。
@@ -62,7 +64,7 @@ Alibaba 新增表单的产品区域已精简为 `product_raw` 产品原文、`pr
 | GET | `/api/clients` | 合并后的客户、筛选枚举与统计 |
 | GET | `/api/clients/{client_id}` | 读取一位客户 |
 | POST | `/api/clients` | 创建客户档案并同步索引/pipeline |
-| PATCH | `/api/clients/{client_id}` | 编辑资料、状态、下一步行动或备注 |
+| PATCH | `/api/clients/{client_id}` | 编辑客户关键信息、产品信息、跟进状态和备注 |
 | POST | `/api/product-info/parse` | 输入 `raw_text`，返回产品拆分建议、批量编码/名称及 `product_items`（中英文标签与数量/价格/用途启发式） |
 | GET | `/api/clients/export.csv?channel=alibaba` | 导出带 UTF-8 BOM 的 Alibaba CSV |
 
@@ -109,7 +111,7 @@ Alibaba CSV 列顺序固定为：ID、姓名、公司、地址、电话、邮箱
 & "C:\Users\weihu\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest discover -s "D:\ai文件\llmwiki-study\ai-assistant\crm-dashboard\tests" -v
 ```
 
-当前共 24 项测试，覆盖中文模板与旧版 `field/value` 表格解析、三源合并和板块归类、空 Alibaba 新建、地址与历史产品字段持久化、旧标签格式、12 条混合批量格式、历史 15 条目标样例、50 条容量样例、18 条价格/日期/编码括号说明样例、半角括号说明、编码内部空格、状态过滤、缺失侧重读、索引/pipeline/档案同步、产品解析与 BOM CSV API、敏感日志脱敏，以及健康检查和客户列表 API；前端静态回归检查草稿箱与统一退出门禁、精简产品区域、两列复制 fallback、manual 保护、CSV 和分页/移动端合同。
+当前共 27 项测试，覆盖中文模板与旧版 `field/value` 表格解析、三源合并和板块归类、空 Alibaba 新建、客户关键信息与手工产品两列联合编辑、Alibaba 空公司编辑、地址与历史产品字段持久化、旧标签格式、12 条混合批量格式、历史 15 条目标样例、50 条容量样例、18 条价格/日期/编码括号说明样例、半角括号说明、编码内部空格、状态过滤、缺失侧重读、索引/pipeline/档案同步、产品解析与 BOM CSV API、敏感日志脱敏，以及健康检查和客户列表 API；前端静态回归检查完整编辑表单、显式产品重拆分、草稿箱、两列复制 fallback、manual 保护、CSV 和分页/移动端合同。
 
 ## 安全边界
 

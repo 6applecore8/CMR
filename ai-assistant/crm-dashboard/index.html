@@ -196,8 +196,86 @@
         </div>
         <div id="detail-view" class="detail-view"></div>
         <form id="edit-form" class="edit-form" novalidate hidden>
-          <div class="form-section-title">跟进更新</div>
-          <div class="form-grid form-grid-compact">
+          <div class="form-section-title">基本资料</div>
+          <div class="form-grid">
+            <label class="field field-wide">
+              <span id="edit-company-label">公司名称</span>
+              <input id="edit-company" name="company" maxlength="200" placeholder="公司、品牌或客户主体" />
+            </label>
+            <label class="field">
+              <span>联系人姓名</span>
+              <input id="edit-contact-name" name="contact_name" maxlength="160" placeholder="客户姓名或联系人" />
+            </label>
+            <label class="field">
+              <span>职位</span>
+              <input id="edit-title" name="title" maxlength="120" placeholder="Founder / Purchasing" />
+            </label>
+            <label class="field">
+              <span>地区</span>
+              <input id="edit-country-region" name="country_region" maxlength="240" placeholder="城市、国家或地区" />
+            </label>
+            <label class="field field-wide">
+              <span>客户地址</span>
+              <textarea id="edit-address" name="address" rows="2" maxlength="500" placeholder="收货地址、办公地址或寄样地址"></textarea>
+            </label>
+            <label class="field">
+              <span>市场</span>
+              <input id="edit-market-bucket" name="market_bucket" maxlength="80" placeholder="EU_US / SEA / OTHER" />
+            </label>
+            <label class="field">
+              <span>渠道类型</span>
+              <input id="edit-channel-type" name="channel_type" maxlength="80" placeholder="brand / distributor / oem" />
+            </label>
+            <label class="field">
+              <span>邮箱</span>
+              <input id="edit-known-email" name="known_email" maxlength="320" placeholder="name@company.com 或 contact form" />
+            </label>
+            <label class="field">
+              <span>电话</span>
+              <input id="edit-known-phone" name="known_phone" maxlength="120" placeholder="含国家区号更好" />
+            </label>
+          </div>
+
+          <section id="edit-product-section" class="product-parser-section" aria-labelledby="edit-product-heading">
+            <div id="edit-product-heading" class="form-section-title">客户产品信息</div>
+            <label class="field field-wide">
+              <span>产品兴趣 / 摘要</span>
+              <input id="edit-product-interest" name="product_interest" maxlength="600" placeholder="客户关注的产品或品类" />
+            </label>
+            <label class="field field-wide">
+              <span>产品原文</span>
+              <textarea id="edit-product-raw" name="product_raw" rows="6" maxlength="10000" placeholder="保留客户发送的产品原始信息"></textarea>
+            </label>
+            <div class="bulk-product-grid">
+              <label class="field">
+                <span>内部编码 <small>一行一个</small></span>
+                <textarea id="edit-product-codes" name="product_codes" rows="8" maxlength="12000" placeholder="23F0907&#10;FY017391"></textarea>
+              </label>
+              <label class="field">
+                <span>产品名称 <small>与编码按行对应</small></span>
+                <textarea id="edit-product-names" name="product_names" rows="8" maxlength="12000" placeholder="Miss Dior&#10;Chance Eau Tendre"></textarea>
+              </label>
+            </div>
+            <div class="bulk-product-actions">
+              <button id="edit-parse-products" class="button button-quiet" type="button">根据原文重新拆分</button>
+              <small id="edit-product-parse-status" class="field-status" role="status" aria-live="polite">手工编码和名称不会被自动覆盖</small>
+            </div>
+          </section>
+
+          <div class="form-section-title">跟进判断</div>
+          <div class="form-grid">
+            <label class="field">
+              <span>等级</span>
+              <select id="edit-icp-tier" name="icp_tier">
+                <option value="C">C · 待观察</option>
+                <option value="B">B · 正常跟进</option>
+                <option value="A">A · 优先跟进</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>分数</span>
+              <input id="edit-icp-score" name="icp_score" type="number" min="0" max="100" step="1" />
+            </label>
             <label class="field">
               <span>状态 <em>*</em></span>
               <select id="edit-status" name="status" required></select>
@@ -213,11 +291,11 @@
           </label>
           <div class="form-actions">
             <button id="edit-cancel" class="button button-quiet" type="button">取消</button>
-            <button class="button button-primary" type="submit">保存更新</button>
+            <button class="button button-primary" type="submit">保存客户资料</button>
           </div>
         </form>
         <div id="detail-actions" class="dialog-actions">
-          <button id="edit-client-btn" class="button button-primary" type="button">编辑跟进</button>
+          <button id="edit-client-btn" class="button button-primary" type="button">编辑客户信息</button>
           <button id="detail-close-btn" class="button button-quiet" type="button">关闭</button>
         </div>
       </div>
