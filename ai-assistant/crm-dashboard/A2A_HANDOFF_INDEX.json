@@ -15,7 +15,7 @@
     "rollback_reference"
   ],
   "start_condition": "Only after the three files above are read and the handoff summary is understood.",
-  "latest_log_event": "local_delivery.customer_edit_ready",
+  "latest_log_event": "git.delivery.customer_edit_pushed",
   "latest_log_status": "passed",
   "latest_error_code": "CRM-OK-001",
   "latest_validation_event": "browser_qa.customer_edit_expansion_passed",
