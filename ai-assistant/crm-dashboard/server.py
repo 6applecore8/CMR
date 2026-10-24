@@ -72,6 +72,7 @@ ERROR_CODES = {
     "bulk_product_parse": "CRM-BULK-PRODUCT-PARSE-001",
     "bulk_copy": "CRM-BULK-COPY-001",
     "pagination": "CRM-PAGINATION-001",
+    "contact_parse": "CRM-CONTACT-PARSE-001",
 }
 SENSITIVE_LOG_KEYS = {
     "email",
@@ -82,6 +83,8 @@ SENSITIVE_LOG_KEYS = {
     "notes",
     "next_action",
     "address",
+    "contact_name",
+    "contact_raw",
     "product_raw",
     "product_name",
     "fragrance_requirement",
@@ -94,6 +97,7 @@ SENSITIVE_LOG_KEYS = {
     "product_codes",
     "product_names",
     "product_items",
+    "custom_tags",
     "raw_markdown",
     "content",
     "payload",
@@ -118,6 +122,7 @@ EDITABLE_FIELDS = {
     "product_codes",
     "product_names",
     "product_name",
+    "custom_tags",
     "fragrance_requirement",
     "product_application",
     "product_quantity",
@@ -136,6 +141,7 @@ PROFILE_FIELDS: Tuple[str, ...] = (
     "address",
     "market_bucket",
     "channel_type",
+    "custom_tags",
     "source",
     "known_email",
     "known_phone",
@@ -156,6 +162,147 @@ PROFILE_FIELDS: Tuple[str, ...] = (
     "next_action",
     "created_at",
     "updated_at",
+)
+CUSTOM_TAG_MAX_COUNT = 20
+CUSTOM_TAG_MAX_LENGTH = 30
+CUSTOM_TAG_TOTAL_MAX_LENGTH = 700
+CUSTOM_TAG_SEPARATORS = re.compile(r"[,，;；\r\n]+")
+CONTACT_FIELDS: Tuple[str, ...] = (
+    "contact_name",
+    "known_phone",
+    "address",
+    "known_email",
+    "company",
+    "title",
+    "country_region",
+)
+CONTACT_FIELD_LIMITS = {
+    "contact_name": 160,
+    "known_phone": 120,
+    "address": 500,
+    "known_email": 320,
+    "company": 200,
+    "title": 120,
+    "country_region": 240,
+}
+CONTACT_LABELS = {
+    "contact_name": (
+        "contact person",
+        "contact name",
+        "customer name",
+        "full name",
+        "person name",
+        "client name",
+        "收件人",
+        "联系人姓名",
+        "客户姓名",
+        "联系人",
+        "姓名",
+        "attention",
+        "attn",
+        "name",
+    ),
+    "known_phone": (
+        "whatsapp",
+        "telephone",
+        "mobile phone",
+        "mobile number",
+        "phone number",
+        "cell phone",
+        "cellphone",
+        "联系电话",
+        "联系方式",
+        "mobile",
+        "handphone",
+        "phone",
+        "tel",
+        "电话",
+        "手机",
+        "fax",
+        "mob",
+        "cell",
+    ),
+    "address": (
+        "shipping address",
+        "delivery address",
+        "mailing address",
+        "office address",
+        "full address",
+        "ship to",
+        "deliver to",
+        "收货地址",
+        "寄样地址",
+        "办公地址",
+        "邮寄地址",
+        "address",
+        "addr",
+        "地址",
+    ),
+    "known_email": ("email address", "e-mail address", "e-mail", "email", "电子邮箱", "邮箱"),
+    "company": ("company name", "organisation", "organization", "公司名称", "company", "公司"),
+    "title": ("job title", "position", "职位", "职务", "title"),
+    "country_region": ("country/region", "country region", "国家/地区", "country", "region", "location", "国家", "地区", "city", "城市"),
+}
+CONTACT_GREETING_RE = re.compile(
+    r"^(?:dear\b.*|hi\b.*|hello\b.*|good\s+(?:morning|afternoon|evening)\b.*|"
+    r"best(?:\s+\w+)?\s+regards?|kind\s+regards?|warm\s+regards?|"
+    r"thanks?(?:\s+and\s+regards)?|regards|sincerely|cheers|"
+    r"sent from my\b.*|谢谢|您好|你好|致敬)[:：,]?\s*$",
+    re.IGNORECASE,
+)
+CONTACT_TITLE_RE = re.compile(
+    r"^(?:ceo|cto|cfo|founder|co-?founder|owner|director|manager|purchasing(?:\s+manager)?|"
+    r"sales(?:\s+manager)?|buyer|importer|president|partner|md|general manager|"
+    r"procurement|purchasing director|采购|经理|总监|老板|负责人)$",
+    re.IGNORECASE,
+)
+CONTACT_COMPANY_RE = re.compile(
+    r"\b(?:ltd|llc|inc|gmbh|s\.?a\.?|s\.?r\.?l\.?|co\.|company|limited|corp|plc|oy|ab|bv|pty|llc)\b|"
+    r"公司|企业|工厂|贸易|有限",
+    re.IGNORECASE,
+)
+CONTACT_ADDRESS_RE = re.compile(
+    r"\b(?:street|st\.?|road|rd\.?|avenue|ave\.?|boulevard|blvd\.?|lane|ln\.?|drive|dr\.?|"
+    r"way|court|ct\.?|place|pl\.?|square|sq\.?|highway|hwy\.?|parkway|pkwy\.?|"
+    r"suite|ste\.?|floor|fl\.?|apartment|apt\.?|unit|building|bldg\.?|"
+    r"po box|p\.o\. box|postal|zip|district|industrial|zone)\b|"
+    r"路|街|道|巷|弄|号|室|座|栋|楼|层|区|市|省|县|镇|村|乡|大厦|广场|工业区|园区|开发区",
+    re.IGNORECASE,
+)
+CONTACT_POSTAL_RE = re.compile(
+    r"\b\d{5}(?:-\d{4})?\b|\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b|\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b",
+    re.IGNORECASE,
+)
+CONTACT_EMAIL_RE = re.compile(r"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}", re.IGNORECASE)
+CONTACT_PHONE_RE = re.compile(
+    r"(?:(?:\+|00)\d{1,3}[\s.\-]*)?(?:\(?\d{2,4}\)?[\s.\-]*)?\d(?:[\s.\-/]?\d){6,14}"
+)
+CONTACT_DATE_RE = re.compile(r"^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$")
+CONTACT_COUNTRIES = frozenset(
+    {
+        "afghanistan", "albania", "algeria", "argentina", "armenia", "australia", "austria",
+        "azerbaijan", "bahrain", "bangladesh", "belarus", "belgium", "bolivia", "bosnia",
+        "brazil", "bulgaria", "cambodia", "cameroon", "canada", "chile", "china", "colombia",
+        "costa rica", "croatia", "cyprus", "czech republic", "czechia", "denmark", "dubai",
+        "ecuador", "egypt", "estonia", "ethiopia", "finland", "france", "georgia", "germany",
+        "ghana", "greece", "hong kong", "hungary", "iceland", "india", "indonesia", "iran",
+        "iraq", "ireland", "israel", "italy", "ivory coast", "japan", "jordan", "kazakhstan",
+        "kenya", "korea", "kuwait", "latvia", "lebanon", "lithuania", "luxembourg", "macau",
+        "malaysia", "mexico", "moldova", "monaco", "mongolia", "montenegro", "morocco",
+        "mozambique", "myanmar", "nepal", "netherlands", "new zealand", "nigeria", "norway",
+        "oman", "pakistan", "palestine", "panama", "paraguay", "peru", "philippines", "poland",
+        "portugal", "qatar", "romania", "russia", "saudi arabia", "senegal", "serbia",
+        "singapore", "slovakia", "slovenia", "south africa", "south korea", "spain",
+        "sri lanka", "sudan", "sweden", "switzerland", "taiwan", "tanzania", "thailand",
+        "tunisia", "turkey", "uae", "ukraine", "united arab emirates", "united kingdom",
+        "united states", "uruguay", "usa", "uk", "us", "uzbekistan", "venezuela", "vietnam",
+        "yemen", "zambia", "zimbabwe",
+        "中国", "美国", "英国", "法国", "德国", "意大利", "西班牙", "澳大利亚", "加拿大",
+        "日本", "韩国", "新加坡", "马来西亚", "泰国", "印尼", "印度", "阿联酋", "沙特",
+        "土耳其", "俄罗斯", "巴西", "墨西哥", "南非", "荷兰", "比利时", "瑞典", "波兰",
+        "瑞士", "葡萄牙", "希腊", "爱尔兰", "新西兰", "越南", "菲律宾", "巴基斯坦", "埃及",
+        "尼日利亚", "肯尼亚", "阿根廷", "智利", "哥伦比亚", "香港", "台湾", "澳门", "迪拜",
+    }
 )
 PRODUCT_FIELDS: Tuple[str, ...] = (
     "product_raw",
@@ -245,6 +392,11 @@ FIELD_ALIASES = {
     "channel_type": "channel_type",
     "channel type": "channel_type",
     "渠道": "channel_type",
+    "custom_tags": "custom_tags",
+    "custom tags": "custom_tags",
+    "tags": "custom_tags",
+    "标签": "custom_tags",
+    "自定义标签": "custom_tags",
     "source": "source",
     "来源": "source",
     "known_email": "known_email",
@@ -491,6 +643,48 @@ def _normalize_multiline_list(value: Any) -> str:
     return "\n".join(line.strip() for line in text.split("\n"))
 
 
+def _normalize_custom_tags(value: Any, *, validate: bool = True) -> List[str]:
+    """把自定义标签规范化为保序、去重的列表。
+
+    新增/编辑输入走严格校验；读取历史 Markdown 时使用宽松模式，避免
+    手工维护的旧档案因标签超限而让整个客户列表无法加载。
+    """
+
+    if value is None:
+        return []
+    raw_values = value if isinstance(value, (list, tuple, set)) else [value]
+    tags: List[str] = []
+    seen: set[str] = set()
+    source_length = 0
+    for raw in raw_values:
+        if raw is None:
+            continue
+        source = re.sub(r"<br\s*/?>", "\n", str(raw), flags=re.IGNORECASE)
+        source_length += len(source)
+        for part in CUSTOM_TAG_SEPARATORS.split(source):
+            candidate = re.sub(r"\s+", " ", _strip_markup(part)).strip()
+            if not candidate:
+                continue
+            if validate and len(candidate) > CUSTOM_TAG_MAX_LENGTH:
+                raise ValidationError(f"custom_tags 单个标签不能超过 {CUSTOM_TAG_MAX_LENGTH} 个字符")
+            key = candidate.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            tags.append(candidate)
+    if validate and len(tags) > CUSTOM_TAG_MAX_COUNT:
+        raise ValidationError(f"custom_tags 最多只能设置 {CUSTOM_TAG_MAX_COUNT} 个标签")
+    if validate and source_length > CUSTOM_TAG_TOTAL_MAX_LENGTH:
+        raise ValidationError(f"custom_tags 总长度不能超过 {CUSTOM_TAG_TOTAL_MAX_LENGTH} 个字符")
+    return tags
+
+
+def _custom_tags_text(value: Any) -> str:
+    """生成适合写入单个 Markdown 表格单元格的标签文本。"""
+
+    return ", ".join(_normalize_custom_tags(value, validate=False))
+
+
 def is_alibaba_source(source: Any) -> bool:
     """按设计文档把 source 含 alibaba/阿里的客户归入 Alibaba 板块。"""
 
@@ -514,21 +708,20 @@ def normalize_channel(value: Any = None, source: Any = None) -> str:
 
 
 def display_name_for_record(record: Mapping[str, Any]) -> str:
-    """给卡片和空 Alibaba 档案提供安全的显示名。"""
+    """给卡片和详情标题提供“姓名优先”的安全显示名。"""
 
     company = _strip_markup(record.get("company"))
     contact = _strip_markup(record.get("contact_name"))
-    if channel_for_record(record) == "alibaba":
-        if contact:
-            return contact
-        if company and company != _strip_markup(record.get("client_id")):
-            return company
-        return "未命名阿里客户"
-    if company and company != _strip_markup(record.get("client_id")):
-        return company
+    client_id = _strip_markup(record.get("client_id"))
     if contact:
         return contact
-    return company or _strip_markup(record.get("client_id")) or "未命名客户"
+    if channel_for_record(record) == "alibaba":
+        if company and company != client_id:
+            return company
+        return "未命名阿里客户"
+    if company and company != client_id:
+        return company
+    return company or client_id or "未命名客户"
 
 
 def _looks_like_unlabelled_product_code(value: Any) -> bool:
@@ -557,11 +750,38 @@ def _clean_tabular_product_code(value: Any) -> str:
     return re.split(r"\s*[（(]", text, maxsplit=1)[0].strip()
 
 
+_TABULAR_COMPACT_CODE_PATTERN = re.compile(
+    r"(?:\d{2,}[A-Za-z][A-Za-z0-9]*|[A-Za-z]{1,5}\d{2,}[A-Za-z]?|[A-Za-z]{1,5}[-/.]\d{2,}[A-Za-z0-9]*)",
+    re.IGNORECASE,
+)
+
+
+def _tabular_product_code_score(value: Any) -> int:
+    """给前两列中的候选编码评分，降低数字产品名的误判。"""
+
+    text = _clean_tabular_product_code(value)
+    if not _looks_like_unlabelled_product_code(text):
+        return -100
+    compact = re.sub(r"\s+", "", text)
+    score = 1
+    if _TABULAR_COMPACT_CODE_PATTERN.fullmatch(compact):
+        score += 4
+    if re.search(r"[-/.]", compact):
+        score += 1
+    if len(re.findall(r"[A-Za-z]+", text)) >= 2:
+        score -= 2
+    if re.search(r"\s", text):
+        score -= 1
+    return score
+
+
 def _tabular_product_pair(line: str) -> Optional[Tuple[str, str]]:
-    """解析 Alibaba 常见的 ``序号  名称  编码  状态`` 表格行。
+    """解析 Alibaba 常见的 ``序号  编码  名称  状态`` 表格行。
 
     列可以由 Tab 或至少两个空格分隔；编码内部的单个空格会保留，
-    例如 ``FY01 4866E``。同时兼容旧的 ``编码  名称`` 顺序。
+    例如 ``FY01 4866E``。编码前后只取相邻的一列作为名称，后续
+    性别、香调、价格、日期和备注等多余列不会混入名称；同时兼容旧的
+    ``名称  编码`` 顺序。
     """
 
     candidate = line.strip()
@@ -571,29 +791,39 @@ def _tabular_product_pair(line: str) -> Optional[Tuple[str, str]]:
     is_numbered = numbered is not None
     if numbered:
         candidate = numbered.group("body").strip()
-    columns = [part.strip() for part in re.split(r"\t+| {2,}", candidate) if part.strip()]
+    if "\t" in candidate:
+        # Tab 表格的连续 Tab 代表真实空单元格，不能压缩后让后续列
+        # （例如性别）顶替缺失的名称列。
+        columns = [part.strip() for part in candidate.split("\t")]
+    else:
+        columns = [part.strip() for part in re.split(r" {2,}", candidate) if part.strip()]
     if len(columns) < 2:
         return None
+    # 明确表格只允许在去掉序号后的前两个业务列中判断方向；后续列
+    # 是性别、香调、价格或备注，不能成为编码候选。
+    business_columns = columns[:2]
     code_indexes = [
         index
-        for index, value in enumerate(columns)
+        for index, value in enumerate(business_columns)
         if _looks_like_unlabelled_product_code(_clean_tabular_product_code(value))
     ]
     if not code_indexes:
         return None
-    # Alibaba 导出的带序号表格采用“名称在前、编码在后”。当产品名本身
-    # 含年份/型号（例如 Aroma Blend 01）时，两列都可能像编码；此时选
-    # 最后一个候选，避免把含数字的产品名误放进编码列。无序号的旧格式
-    # 仍优先使用第一个候选，以兼容 ``CODE  Product name``。
-    code_index = code_indexes[-1] if is_numbered else code_indexes[0]
-    code = _clean_tabular_product_code(columns[code_index])
-    if code_index == 0:
-        name_parts = columns[1:]
+    if len(code_indexes) == 1:
+        code_index = code_indexes[0]
     else:
-        name_parts = columns[:code_index]
-    name = _clean_tabular_product_name(" ".join(name_parts))
-    if not name:
-        return None
+        scores = [_tabular_product_code_score(value) for value in business_columns]
+        if scores[0] != scores[1]:
+            code_index = 0 if scores[0] > scores[1] else 1
+        else:
+            # 两列都无法区分时保留历史方向：带序号常见名称在前，
+            # 无序号格式默认编码在前。
+            code_index = 1 if is_numbered else 0
+    code = _clean_tabular_product_code(columns[code_index])
+    # 表格后续列通常是性别、香调、价格或备注。只消费编码相邻的单一
+    # 名称列，避免把这些业务字段拼进产品名称；名称在编码前时同理。
+    name_column_index = 1 - code_index
+    name = _clean_tabular_product_name(business_columns[name_column_index])
     return code, name
 
 
@@ -915,6 +1145,332 @@ def parse_product_info(raw_text: Any) -> Dict[str, Any]:
     return result
 
 
+def _clip_contact_value(field: str, value: str) -> str:
+    limit = CONTACT_FIELD_LIMITS.get(field, 240)
+    return value.strip()[:limit].strip()
+
+
+def _phone_digits(value: str) -> str:
+    return re.sub(r"\D", "", value or "")
+
+
+def _looks_like_phone(value: str) -> bool:
+    text = (value or "").strip()
+    if not text or CONTACT_DATE_RE.fullmatch(text):
+        return False
+    digits = _phone_digits(text)
+    if not 7 <= len(digits) <= 15:
+        return False
+    if re.fullmatch(r"\d{5}(?:-\d{4})?", text):
+        return False
+    return True
+
+
+def _normalize_phone(value: str) -> str:
+    text = re.sub(r"[\s.\-]+", " ", (value or "").strip(" \t-./"))
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def _extract_emails(text: str) -> List[str]:
+    seen: set[str] = set()
+    emails: List[str] = []
+    for match in CONTACT_EMAIL_RE.finditer(text or ""):
+        email = match.group(0).strip(".,;:）)")
+        key = email.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        emails.append(email)
+    return emails
+
+
+def _extract_phones(text: str) -> List[str]:
+    phones: List[str] = []
+    seen: set[str] = set()
+    source = text or ""
+    for match in CONTACT_PHONE_RE.finditer(source):
+        raw_phone = match.group(0).strip(" \t-./")
+        if not _looks_like_phone(raw_phone):
+            continue
+        following = source[match.end() : match.end() + 24]
+        if re.match(r"\s*(?:street|st\b|road|rd\b|avenue|ave\b|blvd|lane|drive|way|号|路|街)", following, re.IGNORECASE):
+            continue
+        normalized = _normalize_phone(raw_phone)
+        digits = _phone_digits(normalized)
+        if digits in seen:
+            continue
+        seen.add(digits)
+        phones.append(normalized)
+    return phones
+
+
+def _looks_like_country(value: str) -> bool:
+    text = re.sub(r"[.,;]+$", "", (value or "").strip())
+    if not text or len(text) > 40:
+        return False
+    return text.casefold() in CONTACT_COUNTRIES or text in CONTACT_COUNTRIES
+
+
+def _looks_like_company(value: str) -> bool:
+    text = (value or "").strip()
+    if not text or "@" in text or _looks_like_phone(text) or _looks_like_country(text):
+        return False
+    return bool(CONTACT_COMPANY_RE.search(text))
+
+
+def _looks_like_person_name(value: str) -> bool:
+    text = (value or "").strip(" \t,.-")
+    if not text or len(text) > 80 or "@" in text:
+        return False
+    if CONTACT_GREETING_RE.fullmatch(text) or CONTACT_TITLE_RE.fullmatch(text):
+        return False
+    if _looks_like_phone(text) or _looks_like_company(text) or _looks_like_country(text):
+        return False
+    if CONTACT_ADDRESS_RE.search(text) or CONTACT_POSTAL_RE.search(text):
+        return False
+    text = re.sub(r"^(?:mr|mrs|ms|miss|dr|prof|sir|madam)\.?\s+", "", text, flags=re.IGNORECASE).strip()
+    if re.fullmatch(r"[\u4e00-\u9fff]{2,8}", text):
+        return True
+    words = [part for part in re.split(r"\s+", text) if part]
+    if not 1 <= len(words) <= 5:
+        return False
+    if any(re.search(r"\d", word) for word in words):
+        return False
+    return bool(re.fullmatch(r"[A-Za-z\u4e00-\u9fff][A-Za-z\u4e00-\u9fff .''\-]{0,79}", text))
+
+
+def _looks_like_address(value: str) -> bool:
+    text = (value or "").strip()
+    if not text or "@" in text or _looks_like_phone(text) or CONTACT_GREETING_RE.fullmatch(text):
+        return False
+    if _looks_like_product_row(text):
+        return False
+    if CONTACT_ADDRESS_RE.search(text) or CONTACT_POSTAL_RE.search(text):
+        return True
+    if re.search(r"\d", text) and re.search(r"[A-Za-z\u4e00-\u9fff]", text) and ("," in text or "，" in text):
+        return True
+    return False
+
+
+def _looks_like_product_row(line: str) -> bool:
+    """识别阿里询盘中的编号产品行，避免把产品表拼进地址。"""
+
+    text = (line or "").strip()
+    if not text:
+        return False
+    if re.match(r"^\d{1,3}[.)、]\s+\S+", text):
+        return True
+    if re.match(r"^\d{1,3}(?:\t| {2,})\S+", text):
+        parts = [part for part in re.split(r"\t+| {2,}", text) if part]
+        if len(parts) >= 3:
+            return True
+        if re.search(r"\b[A-Z]{1,6}[-\s]?\d{3,}[A-Z0-9]*\b", text):
+            return True
+    return False
+
+
+def _strip_product_rows(value: str) -> str:
+    kept: List[str] = []
+    for line in (value or "").split("\n"):
+        if _looks_like_product_row(line):
+            break
+        kept.append(line)
+    return "\n".join(kept).strip()
+
+
+def _extract_product_block(raw: str) -> str:
+    """从询盘混贴中只抽出编号产品行，避免联系标签进入产品拆分。"""
+
+    rows: List[str] = []
+    for line in (raw or "").split("\n"):
+        if _looks_like_product_row(line):
+            rows.append(line.rstrip())
+    return "\n".join(rows).strip()
+
+
+def _split_contact_lines(raw: str) -> List[str]:
+    lines: List[str] = []
+    for block in (raw or "").replace("|", "\n").split("\n"):
+        for part in re.split(r"\s*[;；]\s*", block):
+            cleaned = part.strip(" \t-—•·")
+            if cleaned:
+                lines.append(cleaned)
+    return lines
+
+
+def _extract_labeled_contact_fields(raw: str) -> Dict[str, str]:
+    result = {field: "" for field in CONTACT_FIELDS}
+    if not raw:
+        return result
+    label_pairs = [(label, field) for field, labels in CONTACT_LABELS.items() for label in labels]
+    label_pairs.sort(key=lambda item: len(item[0]), reverse=True)
+    label_pattern = re.compile("|".join(re.escape(label) for label, _ in label_pairs), re.IGNORECASE)
+    label_lookup = {label.casefold(): field for label, field in label_pairs}
+    matches: List[Tuple[str, int, int]] = []
+    separators = set("\n\r,，;；|/")
+    for match in label_pattern.finditer(raw):
+        label = match.group(0).casefold()
+        field = label_lookup.get(label)
+        if not field:
+            continue
+        prefix = raw[: match.start()].rstrip(" \t")
+        if prefix and prefix[-1] not in separators:
+            continue
+        suffix = raw[match.end() :]
+        delimiter = re.match(r"\s*(?::|：|=|[-—])\s*", suffix)
+        if delimiter:
+            value_start = match.end() + delimiter.end()
+        else:
+            space = re.match(r"[ \t]+", suffix)
+            if not space:
+                continue
+            value_start = match.end() + space.end()
+        matches.append((field, value_start, match.start()))
+
+    for index, (field, value_start, _label_start) in enumerate(matches):
+        value_end = matches[index + 1][2] if index + 1 < len(matches) else len(raw)
+        value = raw[value_start:value_end].strip(" \t\r\n,，;；|/")
+        if not value:
+            continue
+        if field == "contact_name":
+            value = value.split("\n", 1)[0].strip()
+        elif field == "known_phone":
+            phones = _extract_phones(value)
+            value = phones[0] if phones else value.split("\n", 1)[0].strip()
+        elif field == "known_email":
+            emails = _extract_emails(value)
+            value = emails[0] if emails else value.split("\n", 1)[0].strip()
+        elif field == "address":
+            value = _strip_product_rows(re.sub(r"\n{3,}", "\n\n", value).strip())
+        else:
+            value = value.split("\n", 1)[0].strip()
+        if result[field]:
+            continue
+        result[field] = _clip_contact_value(field, value)
+    return result
+
+
+def _scrub_contact_reuse(value: str, *others: str) -> str:
+    text = value or ""
+    for other in others:
+        other_text = (other or "").strip()
+        if not other_text:
+            continue
+        text = re.sub(re.escape(other_text), " ", text, flags=re.IGNORECASE)
+    return re.sub(r"[ \t]{2,}", " ", text).strip(" \t,;|/")
+
+
+def parse_contact_info(raw_text: Any) -> Dict[str, str]:
+    """把粘贴的姓名/电话/地址原文拆成可编辑建议字段。
+
+    纯函数，供单元测试和 ``POST /api/contact-info/parse`` 共用。优先识别
+    中英文标签，再对邮件签名、收货地址和无标签整段做启发式补全。日志
+    调用方只应记录命中字段名，不得写入原文或联系方式。
+    """
+
+    raw = _normalize_multiline(raw_text)
+    result = {field: "" for field in CONTACT_FIELDS}
+    if not raw:
+        return result
+
+    labeled = _extract_labeled_contact_fields(raw)
+    for field, value in labeled.items():
+        if value:
+            result[field] = value
+
+    emails = _extract_emails(raw)
+    if not result["known_email"] and emails:
+        result["known_email"] = _clip_contact_value("known_email", emails[0])
+    phones = _extract_phones(raw)
+    if not result["known_phone"] and phones:
+        result["known_phone"] = _clip_contact_value("known_phone", phones[0])
+
+    skip_exact = {
+        value.strip().casefold()
+        for value in (result["known_email"], result["known_phone"], result["contact_name"], result["company"], result["title"])
+        if value.strip()
+    }
+    remaining: List[str] = []
+    for line in _split_contact_lines(raw):
+        if CONTACT_GREETING_RE.fullmatch(line) or _looks_like_product_row(line):
+            continue
+        folded = line.casefold()
+        if folded in skip_exact:
+            continue
+        if result["known_email"] and result["known_email"].casefold() in folded and len(line) <= len(result["known_email"]) + 8:
+            continue
+        if result["known_phone"] and _phone_digits(line) == _phone_digits(result["known_phone"]) and len(_phone_digits(line)) >= 7:
+            continue
+        if re.match(
+            r"^(?:name|contact(?:\s+(?:name|person))?|customer name|full name|phone|tel|mobile|whatsapp|"
+            r"address|email|e-mail|company(?:\s+name)?|title|attn|attention|"
+            r"姓名|联系人|客户姓名|电话|手机|地址|邮箱|公司|职位)\s*[:：]",
+            line,
+            re.IGNORECASE,
+        ):
+            continue
+        remaining.append(line)
+
+    used_lines: set[str] = set()
+    if not result["contact_name"]:
+        for line in remaining:
+            if _looks_like_person_name(line):
+                cleaned = re.sub(r"^(?:mr|mrs|ms|miss|dr|prof|sir|madam)\.?\s+", "", line, flags=re.IGNORECASE).strip()
+                result["contact_name"] = _clip_contact_value("contact_name", cleaned)
+                used_lines.add(line)
+                break
+
+    if not result["title"]:
+        for line in remaining:
+            if line in used_lines:
+                continue
+            if CONTACT_TITLE_RE.fullmatch(line):
+                result["title"] = _clip_contact_value("title", line)
+                used_lines.add(line)
+                break
+
+    if not result["company"]:
+        for line in remaining:
+            if line in used_lines:
+                continue
+            if _looks_like_company(line):
+                result["company"] = _clip_contact_value("company", line)
+                used_lines.add(line)
+                break
+
+    if not result["address"]:
+        address_lines = []
+        for line in remaining:
+            if line in used_lines:
+                continue
+            if result["contact_name"] and line.strip().casefold() == result["contact_name"].casefold():
+                continue
+            if _looks_like_product_row(line):
+                continue
+            address_lines.append(line)
+        if address_lines:
+            joined = "\n".join(address_lines)
+            joined = _scrub_contact_reuse(joined, result["contact_name"], result["known_phone"], result["known_email"], result["company"])
+            result["address"] = _clip_contact_value("address", _strip_product_rows(joined))
+
+    if result["address"]:
+        result["address"] = _clip_contact_value("address", _strip_product_rows(result["address"]))
+
+    if not result["country_region"] and result["address"]:
+        last_line = result["address"].split("\n")[-1].strip()
+        last_line = re.sub(r"[.,;]+$", "", last_line)
+        if _looks_like_country(last_line):
+            result["country_region"] = _clip_contact_value("country_region", last_line)
+        else:
+            for token in re.split(r"\s*,\s*", last_line):
+                if _looks_like_country(token):
+                    result["country_region"] = _clip_contact_value("country_region", token.strip())
+                    break
+
+    return result
+
+
 def product_interest_summary(record: Mapping[str, Any]) -> str:
     """由拆分字段生成简短 product_interest，兼容旧搜索/卡片。"""
 
@@ -1026,6 +1582,7 @@ def parse_profile(content: str, fallback_id: str = "") -> Dict[str, Any]:
         if result.get(multiline_field):
             normalizer = _normalize_multiline_list if multiline_field in {"product_codes", "product_names"} else _normalize_multiline
             result[multiline_field] = normalizer(result[multiline_field])
+    result["custom_tags"] = _normalize_custom_tags(result.get("custom_tags"), validate=False)
 
     # 标题仅作为缺失字段的弱回退，不覆盖档案表格中的正式值。
     heading_match = re.search(r"(?m)^#\s+(.+?)\s*$", content)
@@ -1138,6 +1695,7 @@ def _empty_record(client_id: str = "") -> Dict[str, Any]:
     record.update(
         {
             "client_id": client_id,
+            "custom_tags": [],
             "notes": "",
             "raw_markdown": "",
             "public_summary": "",
@@ -1187,6 +1745,7 @@ def merge_records(
         record["status"] = _normal_status(record.get("status"))
         record["source_file"] = profile.get("source_file", "")
         record["has_profile"] = bool(profile)
+        record["custom_tags"] = _normalize_custom_tags(record.get("custom_tags"), validate=False)
         if not record.get("company") and not is_alibaba_source(record.get("source")):
             record["company"] = client_id
         if record.get("product_raw"):
@@ -1295,6 +1854,8 @@ def validate_client_payload(
         "tier": "icp_tier",
         "contact": "contact_name",
         "addr": "address",
+        "tags": "custom_tags",
+        "customTags": "custom_tags",
     }
     if channel is None:
         raw_channel = payload.get("customer_channel", payload.get("channel", "")) if isinstance(payload, Mapping) else ""
@@ -1346,6 +1907,8 @@ def validate_client_payload(
                     raise ValidationError(f"{field} 不能超过 {max_length} 个字符")
             else:
                 data[field] = _validate_text(field, data[field], max_length)
+    if "custom_tags" in data:
+        data["custom_tags"] = _normalize_custom_tags(data["custom_tags"])
     if "product_raw" in data:
         data["product_raw"] = _normalize_multiline(data["product_raw"])
         if len(data["product_raw"]) > 10000:
@@ -1400,7 +1963,9 @@ def _new_id(company: str, existing_ids: Iterable[str]) -> str:
 
 def _profile_table_line(label: str, value: Any) -> str:
     field = _normal_field_name(label)
-    if field in {"product_raw", "product_codes", "product_names", "address"}:
+    if field == "custom_tags":
+        safe = _safe_cell(_custom_tags_text(value))
+    elif field in {"product_raw", "product_codes", "product_names", "address"}:
         # Markdown 表格单元格不能直接跨行；用 <br> 保留换行，解析时再还原。
         normalizer = _normalize_multiline_list if field in {"product_codes", "product_names"} else _normalize_multiline
         safe = normalizer(value).replace("|", "／").replace("\n", "<br>")
@@ -1442,6 +2007,7 @@ def render_client_markdown(record: Mapping[str, Any]) -> str:
         "address": "address",
         "market_bucket": "market_bucket",
         "channel_type": "channel_type",
+        "custom_tags": "custom_tags",
         "source": "source",
         "known_email": "known_email",
         "known_phone": "known_phone",
@@ -1962,6 +2528,7 @@ class CRMRequestHandler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
@@ -2104,6 +2671,68 @@ class CRMRequestHandler(BaseHTTPRequestHandler):
                     {"method": "POST", "path": "/api/product-info/parse"},
                 )
                 self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "产品信息拆分失败", "error_code": ERROR_CODES["unexpected"]})
+            return
+        if parsed.path == "/api/contact-info/parse":
+            started = time.perf_counter()
+            try:
+                payload = self._read_json()
+                raw_value = payload.get("raw_text", payload.get("contact_raw", ""))
+                if raw_value is None:
+                    raw_value = ""
+                if not isinstance(raw_value, str):
+                    raise ValidationError("raw_text 必须是字符串")
+                raw = _normalize_multiline(raw_value)
+                if len(raw) > 4000:
+                    raise ValidationError("粘贴的客户信息不能超过 4000 个字符")
+                fields = parse_contact_info(raw)
+                product_excerpt = _extract_product_block(raw)
+                duration_ms = round((time.perf_counter() - started) * 1000, 2)
+                matched_fields = [field for field, value in fields.items() if value]
+                self.store.logger.info(
+                    "contact_parse",
+                    "success",
+                    ERROR_CODES["contact_parse"],
+                    "联系信息拆分完成",
+                    {
+                        "raw_length": len(raw),
+                        "matched_fields": matched_fields,
+                        "product_excerpt_length": len(product_excerpt),
+                        "product_row_count": len(product_excerpt.splitlines()) if product_excerpt else 0,
+                        "duration_ms": duration_ms,
+                    },
+                    {"method": "POST", "path": "/api/contact-info/parse"},
+                )
+                self._send_json(
+                    HTTPStatus.OK,
+                    {
+                        "fields": fields,
+                        "product_excerpt": product_excerpt,
+                        "raw_length": len(raw),
+                        "matched_fields": matched_fields,
+                    },
+                )
+            except ValidationError as exc:
+                duration_ms = round((time.perf_counter() - started) * 1000, 2)
+                self.store.logger.warning(
+                    "contact_parse",
+                    "rejected",
+                    ERROR_CODES["contact_parse"],
+                    "联系信息拆分输入无效",
+                    {"error_type": type(exc).__name__, "duration_ms": duration_ms},
+                    {"method": "POST", "path": "/api/contact-info/parse"},
+                )
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc), "error_code": ERROR_CODES["contact_parse"]})
+            except Exception as exc:
+                duration_ms = round((time.perf_counter() - started) * 1000, 2)
+                self.store.logger.error(
+                    "contact_parse",
+                    "error",
+                    ERROR_CODES["unexpected"],
+                    "联系信息拆分发生未捕获异常",
+                    {"error_type": type(exc).__name__, "duration_ms": duration_ms},
+                    {"method": "POST", "path": "/api/contact-info/parse"},
+                )
+                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "联系信息拆分失败", "error_code": ERROR_CODES["unexpected"]})
             return
         if parsed.path != "/api/clients":
             self.store.logger.warning("api_request", "not_found", ERROR_CODES["api"], "创建接口路径不存在", {"http_status": 404}, {"method": "POST", "path": parsed.path})

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import threading
@@ -16,6 +17,56 @@ HERE = Path(__file__).resolve().parents[1]
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 import server  # noqa: E402
+
+
+class RepositorySafetyTests(unittest.TestCase):
+    LOCAL_ONLY_PATHS = (
+        "/ai-assistant/clients/",
+        "/ai-assistant/leads/",
+        "/ai-assistant/output/",
+        "/ai-assistant/raw/",
+        "/outputs/",
+        "/ai-assistant/crm-dashboard/data/",
+        "/ai-assistant/crm-dashboard/exports/",
+        "/ai-assistant/crm-dashboard/backups/",
+    )
+
+    def test_gitignore_excludes_local_customer_data_paths(self) -> None:
+        repo_root = HERE.parents[1]
+        rules = {
+            line.strip()
+            for line in (repo_root / ".gitignore").read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        }
+        for path in self.LOCAL_ONLY_PATHS:
+            with self.subTest(path=path):
+                self.assertIn(path, rules)
+
+    def test_git_index_contains_no_local_customer_data(self) -> None:
+        repo_root = HERE.parents[1]
+        if not (repo_root / ".git").exists():
+            self.skipTest("源码包不包含 Git 元数据")
+        result = subprocess.run(
+            [
+                "git",
+                "ls-files",
+                "--",
+                "ai-assistant/clients",
+                "ai-assistant/leads",
+                "ai-assistant/output",
+                "ai-assistant/raw",
+                "outputs",
+                "ai-assistant/crm-dashboard/data",
+                "ai-assistant/crm-dashboard/exports",
+                "ai-assistant/crm-dashboard/backups",
+            ],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        self.assertEqual(result.stdout.strip(), "", "Git 索引中不得包含本地客户数据")
 
 
 class MarkdownParsingTests(unittest.TestCase):
@@ -53,6 +104,20 @@ class MarkdownParsingTests(unittest.TestCase):
         self.assertEqual(result["icp_tier"], "A")
         self.assertEqual(result["status"], "sampling")
         self.assertIn("Alibaba", result["notes"])
+
+    def test_parse_profile_normalizes_custom_tags(self) -> None:
+        content = """# Tagged Brand
+
+## Profile
+
+| 字段 | 值 |
+|---|---|
+| client_id | tagged_brand |
+| company | Tagged Brand |
+| custom_tags | VIP, vip，样品中; 高意向 |
+"""
+        result = server.parse_profile(content, "fallback")
+        self.assertEqual(result["custom_tags"], ["VIP", "样品中", "高意向"])
 
     def test_parse_profile_supports_legacy_field_value_table(self) -> None:
         content = """# Legacy Brand
@@ -162,6 +227,49 @@ class MergeAndPersistenceTests(unittest.TestCase):
         self.assertEqual(scanned[created["client_id"]]["source"], "alibaba")
         self.assertEqual(scanned[created["client_id"]]["next_action"], "确认采购品类")
 
+    def test_custom_tags_normalize_persist_and_update_without_logging_values(self) -> None:
+        store = server.CRMStore(self.root)
+        created = store.create_client(
+            {
+                "channel": "alibaba",
+                "custom_tags": "VIP, vip，样品中; 高意向\nVIP",
+            }
+        )
+        self.assertEqual(created["custom_tags"], ["VIP", "样品中", "高意向"])
+        profile_path = self.root / "clients" / f"{created['client_id']}.md"
+        profile_text = profile_path.read_text(encoding="utf-8")
+        self.assertIn("| custom_tags | VIP, 样品中, 高意向 |", profile_text)
+        reread = {item["client_id"]: item for item in store.list_clients()}[created["client_id"]]
+        self.assertEqual(reread["custom_tags"], ["VIP", "样品中", "高意向"])
+
+        updated = store.update_client(created["client_id"], {"custom_tags": "新客户; 新客户\n待报价"})
+        self.assertEqual(updated["custom_tags"], ["新客户", "待报价"])
+        rescanned = {item["client_id"]: item for item in store.list_clients()}[created["client_id"]]
+        self.assertEqual(rescanned["custom_tags"], ["新客户", "待报价"])
+        self.assertIn("| custom_tags | 新客户, 待报价 |", profile_path.read_text(encoding="utf-8"))
+
+        store.logger.info(
+            "custom_tag_probe",
+            "success",
+            server.ERROR_CODES["ok"],
+            "标签日志脱敏探针",
+            {"custom_tags": ["tag-secret-value"]},
+            {"custom_tags": "tag-secret-value"},
+        )
+        log_text = (self.root / "crm-dashboard" / "logs" / server.LOG_FILENAME).read_text(encoding="utf-8")
+        self.assertNotIn("tag-secret-value", log_text)
+
+    def test_custom_tags_constraints_reject_overflow(self) -> None:
+        too_long = "x" * (server.CUSTOM_TAG_MAX_LENGTH + 1)
+        with self.assertRaises(server.ValidationError):
+            server.validate_client_payload({"custom_tags": too_long}, creating=True, channel="alibaba")
+        too_many = ",".join(f"tag-{index}" for index in range(server.CUSTOM_TAG_MAX_COUNT + 1))
+        with self.assertRaises(server.ValidationError):
+            server.validate_client_payload({"custom_tags": too_many}, creating=True, channel="alibaba")
+        too_long_total = ",".join(["tag"] * 250)
+        with self.assertRaises(server.ValidationError):
+            server.validate_client_payload({"custom_tags": too_long_total}, creating=True, channel="alibaba")
+
     def test_channel_classification_and_empty_alibaba_client(self) -> None:
         merged = server.merge_records(
             {"ali": {"client_id": "ali", "source": "Alibaba inquiry"}, "mail": {"client_id": "mail", "source": "website"}},
@@ -181,6 +289,28 @@ class MergeAndPersistenceTests(unittest.TestCase):
         scanned = {item["client_id"]: item for item in store.list_clients()}[created["client_id"]]
         self.assertEqual(scanned["customer_channel"], "alibaba")
         self.assertEqual(scanned["display_name"], "未命名阿里客户")
+
+    def test_display_name_prefers_contact_then_valid_company_for_each_channel(self) -> None:
+        self.assertEqual(
+            server.display_name_for_record({"client_id": "mail-1", "source": "website", "company": "Mail Co", "contact_name": "Mia"}),
+            "Mia",
+        )
+        self.assertEqual(
+            server.display_name_for_record({"client_id": "ali-1", "source": "alibaba", "company": "Ali Co", "contact_name": "李雷"}),
+            "李雷",
+        )
+        self.assertEqual(
+            server.display_name_for_record({"client_id": "mail-2", "source": "website", "company": "Mail Co", "contact_name": ""}),
+            "Mail Co",
+        )
+        self.assertEqual(
+            server.display_name_for_record({"client_id": "ali-2", "source": "alibaba", "company": "", "contact_name": ""}),
+            "未命名阿里客户",
+        )
+        self.assertEqual(
+            server.display_name_for_record({"client_id": "mail-3", "source": "website", "company": "", "contact_name": ""}),
+            "mail-3",
+        )
 
     def test_address_and_product_fields_persist_on_create_and_update(self) -> None:
         store = server.CRMStore(self.root)
@@ -257,7 +387,7 @@ class MergeAndPersistenceTests(unittest.TestCase):
                 "notes": "Updated safely in temporary test data",
             },
         )
-        self.assertEqual(updated["display_name"], "Updated Company")
+        self.assertEqual(updated["display_name"], "Updated Contact")
         self.assertEqual(updated["contact_name"], "Updated Contact")
         self.assertEqual(updated["address"], "Line 1\nLine 2")
         self.assertEqual(updated["known_email"], "buyer@example.com")
@@ -436,6 +566,82 @@ Qty: 25kg for soap"""
         self.assertEqual(parsed["product_items"], [{"code": "HW001", "name": "Half Width Sample"}])
         self.assertNotIn("HW002", parsed["product_codes"])
 
+    def test_tabular_product_parser_uses_adjacent_name_and_ignores_extra_columns(self) -> None:
+        cases = (
+            (
+                "SL-001\tRose Oil\t男\t花香\t$8.00",
+                [{"code": "SL-001", "name": "Rose Oil"}],
+            ),
+            (
+                "SL-002  Jasmine Oil  女  花香  2026-01-01",
+                [{"code": "SL-002", "name": "Jasmine Oil"}],
+            ),
+            (
+                "Rosemary Oil\tSL-003\t中性\t备注",
+                [{"code": "SL-003", "name": "Rosemary Oil"}],
+            ),
+            (
+                "SL-004\tCedar Oil",
+                [{"code": "SL-004", "name": "Cedar Oil"}],
+            ),
+        )
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                parsed = server.parse_product_info(raw)
+                self.assertEqual(parsed["product_items"], expected)
+                self.assertNotRegex(parsed["product_names"], r"男|女|花香|2026-01-01|中性|备注|\\$8\\.00")
+
+    def test_tabular_product_parser_never_uses_later_code_like_extra_columns(self) -> None:
+        code_first = server.parse_product_info("1\tSL-001\tRose 2024 Blend\t女\t香调")
+        self.assertEqual(code_first["product_items"], [{"code": "SL-001", "name": "Rose 2024 Blend"}])
+
+        with_code_like_extras = server.parse_product_info(
+            "1\tSL-001\tRose Oil\tG2\tFloral 2026\tA1 note"
+        )
+        self.assertEqual(with_code_like_extras["product_items"], [{"code": "SL-001", "name": "Rose Oil"}])
+
+        name_first = server.parse_product_info("1\tAroma Blend 01\tALI-0001\t女\t说明")
+        self.assertEqual(name_first["product_items"], [{"code": "ALI-0001", "name": "Aroma Blend 01"}])
+
+    def test_tabular_product_parser_preserves_empty_tab_name_cell(self) -> None:
+        parsed = server.parse_product_info("1\tSL-001\t\tGENDER\tFloral")
+        self.assertEqual(parsed["product_items"], [{"code": "SL-001", "name": ""}])
+        self.assertEqual(parsed["product_codes"], "SL-001")
+        self.assertEqual(parsed["product_names"], "")
+
+    def test_tabular_product_parser_keeps_exact_ten_row_code_first_alibaba_sample(self) -> None:
+        raw = """1\t25F0930\t烟叶香草 Tobacco Vanille\t男/中\t美食东方\t说明
+2\t24F0611\t旷野 Elixir Sauvage Elixir\t男/中\t美食东方\t说明
+3\t23F0907\t迪奥小姐 Miss Dior Blooming Bouquet\t女\t花香\t备注
+4\t24F0342\t马克·雅可布 Daisy\t女\t花香\t价格
+5\t22F0801\t范思哲 Bright Crystal\t女\t花香\t日期
+6\t25F0608\t蔻依 Chloé\t女\t花香\t卖点
+7\tFY014866S\t祖马龙 Peony & Blush Suede\t中性\t花香\t说明
+8\t24F0707\tGucci Flora Gorgeous Gardenia\t女\t花香\t说明
+9\t26F0311\tPDM Delina\t女\t花香\t说明
+10\t25F0351\t可可小姐 Coco Mademoiselle\t女\t东方\t备注"""
+        expected_codes = [
+            "25F0930", "24F0611", "23F0907", "24F0342", "22F0801",
+            "25F0608", "FY014866S", "24F0707", "26F0311", "25F0351",
+        ]
+        expected_names = [
+            "烟叶香草 Tobacco Vanille", "旷野 Elixir Sauvage Elixir",
+            "迪奥小姐 Miss Dior Blooming Bouquet", "马克·雅可布 Daisy",
+            "范思哲 Bright Crystal", "蔻依 Chloé",
+            "祖马龙 Peony & Blush Suede", "Gucci Flora Gorgeous Gardenia",
+            "PDM Delina", "可可小姐 Coco Mademoiselle",
+        ]
+        parsed = server.parse_product_info(raw)
+        self.assertEqual(len(parsed["product_items"]), 10)
+        self.assertEqual(parsed["product_codes"].splitlines(), expected_codes)
+        self.assertEqual(parsed["product_names"].splitlines(), expected_names)
+        self.assertEqual(len(parsed["product_codes"].splitlines()), 10)
+        self.assertEqual(len(parsed["product_names"].splitlines()), 10)
+        self.assertEqual(parsed["product_items"][0], {"code": "25F0930", "name": "烟叶香草 Tobacco Vanille"})
+        self.assertEqual(parsed["product_items"][1], {"code": "24F0611", "name": "旷野 Elixir Sauvage Elixir"})
+        self.assertEqual(parsed["product_items"][9], {"code": "25F0351", "name": "可可小姐 Coco Mademoiselle"})
+        self.assertNotRegex(parsed["product_names"], r"男/中|美食东方|说明|花香|备注|价格|日期|卖点|东方")
+
     def test_bulk_product_parser_splits_name_first_alibaba_sample_into_15_rows(self) -> None:
         raw = """1      Miss Dior Blooming Bouquet\t23F0907\t✅
 2\tChanel Chance Eau Tendre\tFY017391\t✅
@@ -597,6 +803,7 @@ Qty: 25kg for soap"""
         for marker in ('id="add-product-codes" name="product_codes"', 'id="add-product-names" name="product_names"', 'id="copy-product-codes"', 'id="copy-product-names"'):
             self.assertIn(marker, index_html)
         self.assertIn("一次支持识别 50 条产品", index_html)
+        self.assertIn("多余列会忽略", index_html)
         self.assertIn('id="add-product-codes" name="product_codes" rows="10"', index_html)
         self.assertIn('id="add-product-names" name="product_names" rows="10"', index_html)
         for removed_field in ("fragrance_requirement", "product_application", "product_quantity", "product_specification", "target_price", "other_requirements"):
@@ -622,6 +829,7 @@ Qty: 25kg for soap"""
             'id="edit-address" name="address"',
             'id="edit-known-email" name="known_email"',
             'id="edit-known-phone" name="known_phone"',
+            'id="edit-custom-tags" name="custom_tags"',
             'id="edit-product-interest" name="product_interest"',
             'id="edit-product-raw" name="product_raw"',
             'id="edit-product-codes" name="product_codes"',
@@ -642,6 +850,62 @@ Qty: 25kg for soap"""
         self.assertIn('$("#edit-product-codes").value = String(fields.product_codes || "");', app_js)
         self.assertIn('$("#edit-product-names").value = String(fields.product_names || "");', app_js)
         self.assertIn('$("#edit-parse-products").addEventListener("click", parseEditProducts);', app_js)
+
+    def test_frontend_custom_tags_and_long_detail_controls_are_static(self) -> None:
+        index_html = (HERE / "index.html").read_text(encoding="utf-8")
+        app_js = (HERE / "app.js").read_text(encoding="utf-8")
+        css = (HERE / "styles.css").read_text(encoding="utf-8")
+        for marker in (
+            'id="add-custom-tags" name="custom_tags"',
+            'id="edit-custom-tags" name="custom_tags"',
+            'data-detail-copy-field="product_codes"',
+            'data-detail-copy-field="product_names"',
+            "一键复制内部编码",
+            "一键复制产品名称",
+        ):
+            self.assertIn(marker, index_html + app_js)
+        self.assertIn("const DETAIL_LINE_LIMIT = 15;", app_js)
+        self.assertIn("function detailLines(value)", app_js)
+        self.assertIn(".filter((line) => line.length > 0)", app_js)
+        self.assertIn("slice(0, DETAIL_LINE_LIMIT)", app_js)
+        self.assertIn("展开剩余 ${extraLines.length} 条", app_js)
+        self.assertIn('aria-expanded="false"', app_js)
+        self.assertIn('toggle.textContent = expanded ? `展开剩余 ${toggle.dataset.remaining} 条` : "收起";', app_js)
+        self.assertIn('$("#detail-view").addEventListener("click"', app_js)
+        self.assertIn("copyDetailProductColumn", app_js)
+        self.assertIn("normalizeTags(client.custom_tags)", app_js)
+        self.assertIn("client.custom_tags", app_js)
+        self.assertIn("tagsText(client.custom_tags)", app_js)
+        self.assertIn(".card-tags", css)
+        self.assertIn(".detail-expand-toggle", css)
+        self.assertIn(".detail-lines-extra[hidden]", css)
+        self.assertIn(".detail-product-copy-actions", css)
+
+    def test_frontend_contact_is_title_and_company_is_subtitle_contract(self) -> None:
+        app_js = (HERE / "app.js").read_text(encoding="utf-8")
+        css = (HERE / "styles.css").read_text(encoding="utf-8")
+        display_source = app_js.split("const displayName = (client) => {", 1)[1].split("const boardClients", 1)[0]
+        self.assertLess(display_source.index("const contact"), display_source.index("const company"))
+        self.assertLess(display_source.index("if (contact) return contact"), display_source.index("if (company && company !== clientId) return company"))
+        self.assertIn('const subtitle = text(client.company, "公司待补充");', app_js)
+        detail_source = app_js.split("function renderDetail(client)", 1)[1].split("function showClientDetail", 1)[0]
+        self.assertLess(detail_source.index('detailItem("联系人", client.contact_name)'), detail_source.index('detailItem("电话", client.known_phone)'))
+        self.assertLess(detail_source.index('detailItem("电话", client.known_phone)'), detail_source.index('detailItem("地址", client.address)'))
+        self.assertLess(detail_source.index('detailItem("地址", client.address)'), detail_source.index('detailItem("公司", client.company)'))
+        self.assertIn('const title = displayName(client);', detail_source)
+        self.assertIn(".dialog-header > div { min-width: 0; flex: 1 1 auto; }", css)
+        self.assertIn(".dialog-header h2 { max-width: 100%; font-size: 25px; }", css)
+
+    def test_frontend_detail_copy_uses_full_value_and_preserves_blank_rows(self) -> None:
+        app_js = (HERE / "app.js").read_text(encoding="utf-8")
+        copy_source = app_js.split("async function copyProductColumn", 1)[1].split("function localValidateNew", 1)[0]
+        self.assertIn("valueOverride === undefined ? input?.value : valueOverride", copy_source)
+        self.assertIn('const rows = value.split("\\n");', copy_source)
+        self.assertIn("rows.some", copy_source)
+        self.assertIn("normalizedCopyLines", copy_source)
+        self.assertIn("client[field] ?? \"\"", copy_source)
+        self.assertIn("return copyProductColumn(field, DETAIL_COPY_LABELS[field]", copy_source)
+        self.assertIn("state.selectedClientId", copy_source)
 
     def test_frontend_draft_box_and_guarded_close_are_static(self) -> None:
         index_html = (HERE / "index.html").read_text(encoding="utf-8")
@@ -724,6 +988,89 @@ Qty: 25kg for soap"""
         self.assertIn("flex-wrap: wrap", css)
         self.assertIn("@media (max-width: 720px)", css)
         self.assertIn(".pagination-controls { width: 100%;", css)
+
+    def test_frontend_daily_checklist_contract_and_local_storage_logic_are_static(self) -> None:
+        """每日清单只走浏览器存储，日期与任务行为无需启动 API 即可回归检查。"""
+        index_html = (HERE / "index.html").read_text(encoding="utf-8")
+        app_js = (HERE / "app.js").read_text(encoding="utf-8")
+        css = (HERE / "styles.css").read_text(encoding="utf-8")
+        readme = (HERE / "README.md").read_text(encoding="utf-8")
+        handoff = (HERE / "A2A_HANDOFF.md").read_text(encoding="utf-8")
+
+        for marker in (
+            'id="daily-checklist"',
+            'id="daily-checklist-title"',
+            'id="checklist-progress-text"',
+            'id="checklist-progress-bar"',
+            'id="checklist-prev-day"',
+            'id="checklist-next-day"',
+            'id="checklist-today"',
+            'id="checklist-date"',
+            'id="checklist-form"',
+            'id="checklist-input"',
+            'id="checklist-list"',
+            'id="checklist-empty"',
+            'aria-label="每日清单完成进度"',
+        ):
+            self.assertIn(marker, index_html)
+        self.assertIn('type="date"', index_html)
+        self.assertIn('type="checkbox" data-checklist-action="toggle"', app_js)
+        self.assertIn('data-checklist-action="edit"', app_js)
+        self.assertIn('data-checklist-action="delete"', app_js)
+
+        self.assertIn('const CHECKLIST_STORAGE_KEY = "scentedland-crm:daily-checklist:v1";', app_js)
+        self.assertIn("CRM-CHECKLIST-001", app_js)
+        self.assertIn("CRM-CHECKLIST-001", readme + handoff)
+        self.assertIn("window.localStorage.getItem(CHECKLIST_STORAGE_KEY)", app_js)
+        self.assertIn("window.localStorage.setItem(CHECKLIST_STORAGE_KEY", app_js)
+        checklist_source = app_js.split("function localDateKey", 1)[1].split("function normalizeTags", 1)[0]
+        self.assertNotIn("requestJSON(", checklist_source)
+        self.assertNotIn("/api/", checklist_source)
+
+        for function_name in (
+            "todayKey",
+            "shiftDateKey",
+            "readChecklistStore",
+            "writeChecklistStore",
+            "renderChecklist",
+            "renderChecklistProgress",
+            "addChecklistTask",
+            "toggleChecklistTask",
+            "saveChecklistTaskEdit",
+            "deleteChecklistTask",
+            "changeChecklistDate",
+        ):
+            self.assertIn(f"function {function_name}", app_js)
+        self.assertIn("function navigateChecklistDate", app_js)
+        self.assertIn("changeChecklistDate(shiftDateKey(checklistState.date || todayKey(), offset));", app_js)
+        self.assertIn('$("#checklist-prev-day").addEventListener("click", () => navigateChecklistDate(-1));', app_js)
+        self.assertIn('$("#checklist-next-day").addEventListener("click", () => navigateChecklistDate(1));', app_js)
+        self.assertIn('$("#checklist-date").addEventListener("change", (event) => changeChecklistDate(event.currentTarget.value));', app_js)
+
+        add_source = app_js.split("function addChecklistTask", 1)[1].split("function findChecklistTask", 1)[0]
+        self.assertIn("createChecklistTask", add_source)
+        self.assertIn("[date]: nextTasks", add_source)
+        toggle_source = app_js.split("function toggleChecklistTask", 1)[1].split("function startChecklistTaskEdit", 1)[0]
+        self.assertIn("checkbox.checked", toggle_source)
+        self.assertIn("completed: checkbox.checked", toggle_source)
+        edit_source = app_js.split("function saveChecklistTaskEdit", 1)[1].split("function deleteChecklistTask", 1)[0]
+        self.assertIn("text: nextText.slice", edit_source)
+        delete_source = app_js.split("function deleteChecklistTask", 1)[1].split("function handleChecklistClick", 1)[0]
+        self.assertIn("filter((candidate) => candidate.id !== task.id)", delete_source)
+        progress_source = app_js.split("function renderChecklistProgress", 1)[1].split("function renderChecklist", 1)[0]
+        self.assertIn("tasks.filter((task) => task.completed)", progress_source)
+        self.assertIn("percentage", progress_source)
+
+        for marker in (
+            ".checklist-panel",
+            ".checklist-date-nav",
+            ".checklist-add-form",
+            ".checklist-item",
+            ".checklist-item.is-complete",
+            ".checklist-edit-input[hidden]",
+            "@media (max-width: 720px)",
+        ):
+            self.assertIn(marker, css)
 
     def test_update_changes_only_editable_fields_and_preserves_outreach(self) -> None:
         record = {
@@ -883,6 +1230,193 @@ class HttpApiTests(unittest.TestCase):
                 self.assertIn(server.ERROR_CODES["bulk_product_parse"], log_text)
                 self.assertNotIn("Rose Oil", log_text)
                 self.assertNotIn("敏感备注 secret", log_text)
+            finally:
+                httpd.shutdown()
+                httpd.server_close()
+                thread.join(timeout=3)
+
+    def test_parse_contact_info_labeled_unlabeled_and_signature(self) -> None:
+        labeled = server.parse_contact_info(
+            "Name: Pat Lee; Phone: +1 555 010 1234; Address: 10 Test Road, Sample City; Email: pat.lee@example.test"
+        )
+        self.assertEqual(labeled["contact_name"], "Pat Lee")
+        self.assertEqual(labeled["known_phone"], "+1 555 010 1234")
+        self.assertIn("10 Test Road", labeled["address"])
+        self.assertEqual(labeled["known_email"], "pat.lee@example.test")
+
+        unlabeled = server.parse_contact_info(
+            "Pat Lee\n10 Test Road\nSample City\nUnited States\n+1 555 010 1234\npat.lee@example.test"
+        )
+        self.assertEqual(unlabeled["contact_name"], "Pat Lee")
+        self.assertEqual(unlabeled["known_phone"], "+1 555 010 1234")
+        self.assertIn("10 Test Road", unlabeled["address"])
+        self.assertIn("Sample City", unlabeled["address"])
+        self.assertEqual(unlabeled["known_email"], "pat.lee@example.test")
+        self.assertEqual(unlabeled["country_region"], "United States")
+
+        chinese = server.parse_contact_info("姓名：王芳\n电话：+86 138 0013 8000\n地址：福建省厦门市湖里区测试路 88 号")
+        self.assertEqual(chinese["contact_name"], "王芳")
+        self.assertEqual(chinese["known_phone"], "+86 138 0013 8000")
+        self.assertIn("测试路 88 号", chinese["address"])
+
+        signature = server.parse_contact_info(
+            "Best regards,\nPat Lee\nPurchasing Director\nSample Oils Ltd\n10 Test Road\nSample City\nUnited States\nTel: +1 555 010 1234\npat.lee@example.test"
+        )
+        self.assertEqual(signature["contact_name"], "Pat Lee")
+        self.assertEqual(signature["title"], "Purchasing Director")
+        self.assertEqual(signature["company"], "Sample Oils Ltd")
+        self.assertEqual(signature["known_phone"], "+1 555 010 1234")
+        self.assertIn("10 Test Road", signature["address"])
+        self.assertEqual(signature["known_email"], "pat.lee@example.test")
+
+        date_block = server.parse_contact_info("Updated: 2026-09-30\nName: Pat Lee\nAddress: 10 Test Road")
+        self.assertEqual(date_block["contact_name"], "Pat Lee")
+        self.assertEqual(date_block["known_phone"], "")
+        self.assertIn("10 Test Road", date_block["address"])
+
+        empty = server.parse_contact_info("")
+        self.assertEqual(empty["contact_name"], "")
+        self.assertEqual(empty["known_phone"], "")
+        self.assertEqual(empty["address"], "")
+
+        alibaba = server.parse_contact_info(
+            "Contact Name: Pat Lee\nMobile Phone: +1 555 010 1234\nEmail Address: pat.lee@example.test\n"
+            "Location: United States\nAddress: 10 Test Road, Sample City\n"
+            "1\tMiss Dior Blooming Bouquet\t23F0907\n2\tJo Malone Peony\tFY014866S"
+        )
+        self.assertEqual(alibaba["contact_name"], "Pat Lee")
+        self.assertEqual(alibaba["known_phone"], "+1 555 010 1234")
+        self.assertEqual(alibaba["known_email"], "pat.lee@example.test")
+        self.assertEqual(alibaba["country_region"], "United States")
+        self.assertIn("10 Test Road", alibaba["address"])
+        self.assertNotIn("Miss Dior", alibaba["address"])
+        self.assertNotIn("23F0907", alibaba["address"])
+        products = server.parse_product_info(
+            "Contact Name: Pat Lee\nAddress: 10 Test Road\n1\tMiss Dior Blooming Bouquet\t23F0907\n2\tJo Malone Peony\tFY014866S"
+        )
+        self.assertEqual(products["product_codes"], "23F0907\nFY014866S")
+        self.assertEqual(products["product_names"], "Miss Dior Blooming Bouquet\nJo Malone Peony")
+
+        product_only = (
+            "1    Miss Dior Blooming Bouquet    23F0907    ✅\n"
+            "2    Jo Malone Peony & Blush Suede    FY014866S    ⚠️"
+        )
+        named_mixed = (
+            "Name: Pat Lee\nPhone: +1 555 010 1234\nAddress: 10 Test Road, Sample City\n" + product_only
+        )
+        excerpt = server._extract_product_block(named_mixed)
+        self.assertEqual(excerpt, product_only)
+        self.assertEqual(server._extract_product_block("Name: Pat Lee\nPhone: +1 555 010 1234"), "")
+        clean_products = server.parse_product_info(excerpt)
+        self.assertEqual(clean_products["product_codes"], "23F0907\nFY014866S")
+        self.assertEqual(clean_products["product_names"], "Miss Dior Blooming Bouquet\nJo Malone Peony & Blush Suede")
+        self.assertEqual(len(clean_products["product_items"]), 2)
+        self.assertNotIn("Pat Lee", clean_products["product_names"])
+        self.assertNotIn("Test Road", clean_products["product_names"])
+        dedicated = server.parse_product_info(product_only)
+        self.assertEqual(dedicated["product_codes"], clean_products["product_codes"])
+        self.assertEqual(dedicated["product_names"], clean_products["product_names"])
+
+    def test_frontend_contact_paste_parser_and_priority_fields(self) -> None:
+        index_html = (HERE / "index.html").read_text(encoding="utf-8")
+        app_js = (HERE / "app.js").read_text(encoding="utf-8")
+        css = (HERE / "styles.css").read_text(encoding="utf-8")
+        for marker in (
+            'id="add-contact-raw"',
+            'id="edit-contact-raw"',
+            'id="add-contact-parse-status"',
+            'id="edit-contact-parse-status"',
+            'id="add-contact-name" name="contact_name"',
+            'id="add-known-phone" name="known_phone"',
+            'id="add-address" name="address"',
+            "常用联系信息",
+            "粘贴整段客户信息",
+        ):
+            self.assertIn(marker, index_html)
+        add_form = index_html.split('id="add-form"', 1)[1].split('id="product-parser-fields"', 1)[0]
+        self.assertLess(add_form.index('id="add-contact-raw"'), add_form.index('name="contact_name"'))
+        self.assertLess(add_form.index('name="contact_name"'), add_form.index('name="known_phone"'))
+        self.assertLess(add_form.index('name="known_phone"'), add_form.index('name="address"'))
+        self.assertLess(add_form.index('name="address"'), add_form.index('name="company"'))
+        edit_form = index_html.split('id="edit-form"', 1)[1].split('id="edit-product-section"', 1)[0]
+        self.assertLess(edit_form.index('id="edit-contact-raw"'), edit_form.index('name="contact_name"'))
+        self.assertLess(edit_form.index('name="contact_name"'), edit_form.index('name="known_phone"'))
+        self.assertLess(edit_form.index('name="known_phone"'), edit_form.index('name="address"'))
+        self.assertLess(edit_form.index('name="address"'), edit_form.index('name="company"'))
+        self.assertIn("/api/contact-info/parse", app_js)
+        self.assertIn("function scheduleContactParse", app_js)
+        self.assertIn("function applyContactFields", app_js)
+        self.assertIn("if (parser.manual.has(field) && current && current !== previous) return;", app_js)
+        self.assertIn('bindContactParser(addContactParser, "#add-contact-raw"', app_js)
+        self.assertIn('bindContactParser(editContactParser, "#edit-contact-raw"', app_js)
+        self.assertIn('window.setTimeout(() => $("#add-contact-raw").focus(), 0);', app_js)
+        self.assertIn('window.setTimeout(() => $("#edit-contact-raw").focus(), 0);', app_js)
+        self.assertIn('const primaryLabel = "电话";', app_js)
+        self.assertIn('const secondaryLabel = "地址";', app_js)
+        self.assertIn("CONTACT_PASTE_PLACEHOLDER_ALI", app_js)
+        self.assertIn("function fillAlibabaProductsFromContact", app_js)
+        self.assertIn("function isAlibabaContactForm", app_js)
+        self.assertIn("body.product_excerpt", app_js)
+        self.assertIn("fillAlibabaProductsFromContact(productExcerpt, formSelector)", app_js)
+        self.assertNotIn("fillAlibabaProductsFromContact(raw, formSelector)", app_js)
+        self.assertIn('$("#add-product-raw").addEventListener("input"', app_js)
+        self.assertIn("scheduleProductParse();", app_js)
+        self.assertIn('$("#product-parser-fields").hidden = !isAlibaba;', app_js)
+        self.assertIn('$("#add-contact-raw").placeholder = isAlibaba ? CONTACT_PASTE_PLACEHOLDER_ALI', app_js)
+        self.assertIn('$("#edit-contact-raw").placeholder = isAlibaba ? CONTACT_PASTE_PLACEHOLDER_ALI', app_js)
+        self.assertLess(index_html.index('id="add-contact-raw"'), index_html.index('id="product-parser-fields"'))
+        self.assertIn('id="product-parser-fields" class="product-parser-section" hidden', index_html)
+        self.assertNotIn('class="contact-parser-section" hidden', index_html)
+        self.assertIn(".contact-parser-section", css)
+        self.assertIn(".contact-priority-grid", css)
+
+    def test_contact_parse_api_does_not_log_raw_text(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "clients").mkdir()
+            (root / "leads").mkdir()
+            (root / "clients" / "_index.md").write_text("# 客户索引\n", encoding="utf-8")
+            (root / "leads" / "pipeline.md").write_text("# Lead Pipeline\n", encoding="utf-8")
+            httpd = server.create_server("127.0.0.1", 0, root)
+            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base = f"http://127.0.0.1:{httpd.server_port}"
+                sample = "Name: Pat Lee; Phone: +1 555 010 1234; Address: 10 Test Road"
+                request = urllib.request.Request(
+                    base + "/api/contact-info/parse",
+                    data=json.dumps({"raw_text": sample}).encode("utf-8"),
+                    method="POST",
+                    headers={"Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    parsed = json.loads(response.read().decode("utf-8"))
+                self.assertEqual(parsed["fields"]["contact_name"], "Pat Lee")
+                self.assertEqual(parsed["fields"]["known_phone"], "+1 555 010 1234")
+                self.assertIn("10 Test Road", parsed["fields"]["address"])
+                self.assertIn("contact_name", parsed["matched_fields"])
+                self.assertEqual(parsed.get("product_excerpt"), "")
+                mixed_sample = sample + "\n1    Miss Dior Blooming Bouquet    23F0907\n2    Jo Malone Peony    FY014866S"
+                mixed_request = urllib.request.Request(
+                    base + "/api/contact-info/parse",
+                    data=json.dumps({"raw_text": mixed_sample}).encode("utf-8"),
+                    method="POST",
+                    headers={"Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(mixed_request, timeout=3) as response:
+                    mixed_parsed = json.loads(response.read().decode("utf-8"))
+                self.assertIn("23F0907", mixed_parsed["product_excerpt"])
+                self.assertIn("FY014866S", mixed_parsed["product_excerpt"])
+                self.assertNotIn("Pat Lee", mixed_parsed["product_excerpt"])
+                self.assertNotIn("10 Test Road", mixed_parsed["product_excerpt"])
+                log_path = root / "crm-dashboard" / "logs" / server.LOG_FILENAME
+                log_text = log_path.read_text(encoding="utf-8")
+                self.assertIn(server.ERROR_CODES["contact_parse"], log_text)
+                self.assertNotIn("Pat Lee", log_text)
+                self.assertNotIn("555 010 1234", log_text)
+                self.assertNotIn("10 Test Road", log_text)
+                self.assertNotIn("Miss Dior", log_text)
+                self.assertNotIn("23F0907", log_text)
             finally:
                 httpd.shutdown()
                 httpd.server_close()

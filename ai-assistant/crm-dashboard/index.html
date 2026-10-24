@@ -22,12 +22,27 @@
             <span class="health-dot" aria-hidden="true"></span>
             <span>正在检查服务</span>
           </div>
+          <section id="channel-tabs" class="channel-tabs" aria-label="客户板块">
+            <div class="channel-tab-list" role="tablist" aria-label="客户来源板块">
+              <button id="channel-alibaba" class="channel-tab" type="button" role="tab" data-channel="alibaba" aria-selected="false" aria-controls="client-grid">
+                <span class="channel-tab-name">阿里客户</span>
+                <strong id="count-alibaba" class="channel-count">—</strong>
+              </button>
+              <button id="channel-email" class="channel-tab is-active" type="button" role="tab" data-channel="email" aria-selected="true" aria-controls="client-grid">
+                <span class="channel-tab-name">邮件客户</span>
+                <strong id="count-email" class="channel-count">—</strong>
+              </button>
+            </div>
+          </section>
           <button id="draft-box-btn" class="button button-quiet draft-box-button" type="button" aria-haspopup="dialog">
             草稿箱 <strong id="draft-count" class="draft-count">0</strong>
           </button>
           <button id="add-client-btn" class="button button-primary" type="button">
             <span aria-hidden="true">＋</span> 新增客户
           </button>
+          <a id="export-alibaba-btn" class="button button-quiet export-button" href="/api/clients/export.csv?channel=alibaba" download="alibaba-customers.csv" hidden>
+            <span aria-hidden="true">⇩</span> 导出 Alibaba CSV
+          </a>
         </div>
       </header>
 
@@ -42,22 +57,6 @@
             <span class="hero-note-icon" aria-hidden="true">✦</span>
             <span><strong>本地数据源</strong><br />clients · leads/pipeline</span>
           </div>
-        </section>
-
-        <section id="channel-tabs" class="channel-tabs" aria-label="客户板块">
-          <div class="channel-tab-list" role="tablist" aria-label="客户来源板块">
-            <button id="channel-alibaba" class="channel-tab" type="button" role="tab" data-channel="alibaba" aria-selected="false" aria-controls="client-grid">
-              <span class="channel-tab-name">阿里客户</span>
-              <strong id="count-alibaba" class="channel-count">—</strong>
-            </button>
-            <button id="channel-email" class="channel-tab is-active" type="button" role="tab" data-channel="email" aria-selected="true" aria-controls="client-grid">
-              <span class="channel-tab-name">邮件客户</span>
-              <strong id="count-email" class="channel-count">—</strong>
-            </button>
-          </div>
-          <a id="export-alibaba-btn" class="button button-quiet export-button" href="/api/clients/export.csv?channel=alibaba" download="alibaba-customers.csv" hidden>
-            <span aria-hidden="true">⇩</span> 导出 Alibaba CSV
-          </a>
         </section>
 
         <section id="stats" class="stats-grid" aria-label="客户统计">
@@ -81,6 +80,38 @@
             <strong id="stat-pending" class="stat-value">—</strong>
             <span class="stat-hint">已有下一步行动</span>
           </article>
+        </section>
+
+        <section id="daily-checklist" class="checklist-panel" aria-labelledby="daily-checklist-title">
+          <div class="checklist-header">
+            <div>
+              <p class="eyebrow eyebrow-amber">今日安排</p>
+              <h2 id="daily-checklist-title">每日清单</h2>
+              <p class="checklist-intro">把今天要完成的跟进集中在这里，按日期分别保存。</p>
+            </div>
+            <div class="checklist-progress" aria-label="每日清单完成进度">
+              <strong id="checklist-progress-text" aria-live="polite">0 / 0 已完成 · 0%</strong>
+              <progress id="checklist-progress-bar" value="0" max="1" aria-label="每日清单完成进度">0%</progress>
+            </div>
+          </div>
+          <div class="checklist-toolbar">
+            <div class="checklist-date-nav" aria-label="选择清单日期">
+              <button id="checklist-prev-day" class="icon-button checklist-nav-button" type="button" aria-label="前一天" title="前一天">←</button>
+              <label class="checklist-date-field">
+                <span>日期</span>
+                <input id="checklist-date" type="date" aria-label="清单日期" />
+              </label>
+              <button id="checklist-next-day" class="icon-button checklist-nav-button" type="button" aria-label="后一天" title="后一天">→</button>
+              <button id="checklist-today" class="button button-quiet" type="button">回到今天</button>
+            </div>
+            <form id="checklist-form" class="checklist-add-form">
+              <label class="sr-only" for="checklist-input">新增每日任务</label>
+              <input id="checklist-input" name="task" type="text" maxlength="240" autocomplete="off" required placeholder="添加今天要完成的任务…" />
+              <button id="checklist-add" class="button button-primary" type="submit"><span aria-hidden="true">＋</span> 添加任务</button>
+            </form>
+          </div>
+          <ul id="checklist-list" class="checklist-list" aria-label="每日任务"></ul>
+          <p id="checklist-empty" class="checklist-empty">这一天还没有任务，先添加一个下一步吧。</p>
         </section>
 
         <section class="toolbar" aria-label="客户筛选">
@@ -196,15 +227,34 @@
         </div>
         <div id="detail-view" class="detail-view"></div>
         <form id="edit-form" class="edit-form" novalidate hidden>
-          <div class="form-section-title">基本资料</div>
-          <div class="form-grid">
+          <div class="form-section-title">常用联系信息</div>
+          <section class="contact-parser-section" aria-labelledby="edit-contact-parse-heading">
+            <div id="edit-contact-parse-heading" class="form-section-title">粘贴识别</div>
             <label class="field field-wide">
-              <span id="edit-company-label">公司名称</span>
-              <input id="edit-company" name="company" maxlength="200" placeholder="公司、品牌或客户主体" />
+              <span>粘贴整段客户信息</span>
+              <textarea id="edit-contact-raw" rows="4" maxlength="4000" placeholder="粘贴包含姓名、电话、地址的整段文字，例如邮件签名或收货信息。识别结果会填入下方对应字段。"></textarea>
+              <small id="edit-contact-parse-status" class="field-status" role="status" aria-live="polite"></small>
+            </label>
+          </section>
+          <div class="form-grid contact-priority-grid">
+            <label class="field">
+              <span>客户姓名</span>
+              <input id="edit-contact-name" name="contact_name" maxlength="160" placeholder="客户姓名或联系人" />
             </label>
             <label class="field">
-              <span>联系人姓名</span>
-              <input id="edit-contact-name" name="contact_name" maxlength="160" placeholder="客户姓名或联系人" />
+              <span>电话</span>
+              <input id="edit-known-phone" name="known_phone" maxlength="120" placeholder="含国家区号更好" />
+            </label>
+            <label class="field field-wide">
+              <span>地址</span>
+              <textarea id="edit-address" name="address" rows="2" maxlength="500" placeholder="收货地址、办公地址或寄样地址"></textarea>
+            </label>
+          </div>
+          <div class="form-section-title">基本资料</div>
+          <div class="form-grid">
+            <label class="field">
+              <span id="edit-company-label">公司名称</span>
+              <input id="edit-company" name="company" maxlength="200" placeholder="公司、品牌或客户主体" />
             </label>
             <label class="field">
               <span>职位</span>
@@ -213,10 +263,6 @@
             <label class="field">
               <span>地区</span>
               <input id="edit-country-region" name="country_region" maxlength="240" placeholder="城市、国家或地区" />
-            </label>
-            <label class="field field-wide">
-              <span>客户地址</span>
-              <textarea id="edit-address" name="address" rows="2" maxlength="500" placeholder="收货地址、办公地址或寄样地址"></textarea>
             </label>
             <label class="field">
               <span>市场</span>
@@ -230,9 +276,10 @@
               <span>邮箱</span>
               <input id="edit-known-email" name="known_email" maxlength="320" placeholder="name@company.com 或 contact form" />
             </label>
-            <label class="field">
-              <span>电话</span>
-              <input id="edit-known-phone" name="known_phone" maxlength="120" placeholder="含国家区号更好" />
+            <label class="field field-wide">
+              <span>自定义标签</span>
+              <input id="edit-custom-tags" name="custom_tags" maxlength="700" placeholder="例如：高意向, 样品中; Alibaba" aria-describedby="edit-custom-tags-help" />
+              <small id="edit-custom-tags-help" class="field-help">用逗号、中文逗号、分号或换行分隔；最多 20 个，每个不超过 30 个字符。</small>
             </label>
           </div>
 
@@ -312,15 +359,34 @@
         </div>
         <p id="add-dialog-intro" class="dialog-intro">录入后会生成客户 Markdown，并同步索引与 pipeline。邮件客户需要公司名称，阿里客户可先留空。</p>
         <form id="add-form" class="edit-form" novalidate>
-          <div class="form-section-title">基本资料</div>
-          <div class="form-grid">
+          <div class="form-section-title">常用联系信息</div>
+          <section class="contact-parser-section" aria-labelledby="add-contact-parse-heading">
+            <div id="add-contact-parse-heading" class="form-section-title">粘贴识别</div>
             <label class="field field-wide">
-              <span id="add-company-label">公司名称</span>
-              <input id="add-company" name="company" maxlength="200" placeholder="例如：Scent Studio Ltd" />
+              <span>粘贴整段客户信息</span>
+              <textarea id="add-contact-raw" rows="4" maxlength="4000" placeholder="粘贴包含姓名、电话、地址的整段文字，例如邮件签名或收货信息。识别结果会填入下方对应字段。"></textarea>
+              <small id="add-contact-parse-status" class="field-status" role="status" aria-live="polite"></small>
+            </label>
+          </section>
+          <div class="form-grid contact-priority-grid">
+            <label class="field">
+              <span>客户姓名</span>
+              <input id="add-contact-name" name="contact_name" maxlength="160" placeholder="姓名或待确认" />
             </label>
             <label class="field">
-              <span>联系人</span>
-              <input name="contact_name" maxlength="160" placeholder="姓名或待确认" />
+              <span>电话</span>
+              <input id="add-known-phone" name="known_phone" maxlength="120" placeholder="含国家区号更好" />
+            </label>
+            <label class="field field-wide">
+              <span>地址</span>
+              <textarea id="add-address" name="address" rows="2" maxlength="500" placeholder="收货地址、办公地址或寄样地址"></textarea>
+            </label>
+          </div>
+          <div class="form-section-title">基本资料</div>
+          <div class="form-grid">
+            <label class="field">
+              <span id="add-company-label">公司名称</span>
+              <input id="add-company" name="company" maxlength="200" placeholder="例如：Scent Studio Ltd" />
             </label>
             <label class="field">
               <span>职位</span>
@@ -329,10 +395,6 @@
             <label class="field">
               <span>地区</span>
               <input name="country_region" maxlength="240" placeholder="城市、国家或地区" />
-            </label>
-            <label class="field field-wide">
-              <span>地址</span>
-              <input name="address" maxlength="500" placeholder="收货地址、办公地址或寄样地址" />
             </label>
             <label class="field">
               <span>市场</span>
@@ -364,19 +426,20 @@
               <span>邮箱</span>
               <input name="known_email" type="email" maxlength="320" placeholder="name@company.com" />
             </label>
-            <label class="field">
-              <span>电话</span>
-              <input name="known_phone" maxlength="120" placeholder="含国家区号更好" />
-            </label>
             <label class="field field-wide">
               <span>产品兴趣</span>
               <input name="product_interest" maxlength="600" placeholder="例如：蜡烛、扩香、香水用 fragrance oils" />
+            </label>
+            <label class="field field-wide">
+              <span>自定义标签</span>
+              <input id="add-custom-tags" name="custom_tags" maxlength="700" placeholder="例如：高意向, 样品中; Alibaba" aria-describedby="add-custom-tags-help" />
+              <small id="add-custom-tags-help" class="field-help">用逗号、中文逗号、分号或换行分隔；最多 20 个，每个不超过 30 个字符。</small>
             </label>
           </div>
 
           <div id="product-parser-fields" class="product-parser-section" hidden>
             <div class="form-section-title">Alibaba 产品信息</div>
-            <p class="field-help">一次支持识别 50 条产品，系统会按原顺序拆成“内部编码”和“产品名称”两列。序号、状态符号和括号备注不会混入结果。</p>
+            <p class="field-help">一次支持识别 50 条产品，系统会按原顺序拆成“内部编码”和“产品名称”两列。序号、状态符号、括号备注和多余列会忽略，不会混入结果。</p>
             <label class="field field-wide">
               <span>产品原文</span>
               <textarea id="add-product-raw" name="product_raw" rows="8" maxlength="10000" placeholder="例如：&#10;1    Miss Dior Blooming Bouquet    23F0907    ✅&#10;2    Jo Malone Peony &amp; Blush Suede    FY014866S    ⚠️ 有码无价"></textarea>

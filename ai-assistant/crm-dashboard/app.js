@@ -17,8 +17,24 @@
     cold: "冷却",
   };
   const TIER_LABELS = { A: "A · 优先", B: "B · 跟进", C: "C · 观察" };
-  const UI_ERROR_CODES = { bulkCopy: "CRM-BULK-COPY-001", draft: "CRM-DRAFT-001", productParse: "CRM-PRODUCT-PARSE-001" };
+  const UI_ERROR_CODES = { bulkCopy: "CRM-BULK-COPY-001", draft: "CRM-DRAFT-001", productParse: "CRM-PRODUCT-PARSE-001", contactParse: "CRM-CONTACT-PARSE-001", checklist: "CRM-CHECKLIST-001" };
+  const CONTACT_PARSE_FIELDS = Object.freeze(["contact_name", "known_phone", "address", "known_email", "company", "title", "country_region"]);
+  const CONTACT_FIELD_LABELS = Object.freeze({
+    contact_name: "姓名",
+    known_phone: "电话",
+    address: "地址",
+    known_email: "邮箱",
+    company: "公司",
+    title: "职位",
+    country_region: "地区",
+  });
+  const CONTACT_PASTE_PLACEHOLDER_EMAIL = "粘贴包含姓名、电话、地址的整段文字，例如邮件签名或收货信息。识别结果会填入下方对应字段。";
+  const CONTACT_PASTE_PLACEHOLDER_ALI = "粘贴阿里询盘或聊天中的整段文字。姓名、电话、地址会填入下方；若含产品列表，会同步拆到产品两列。";
   const DRAFT_STORAGE_KEY = "scentedland-crm:new-client-drafts:v1";
+  const CHECKLIST_STORAGE_KEY = "scentedland-crm:daily-checklist:v1";
+  const CHECKLIST_MAX_TEXT_LENGTH = 240;
+  const DETAIL_LINE_LIMIT = 15;
+  const DETAIL_COPY_LABELS = Object.freeze({ product_codes: "内部编码", product_names: "产品名称" });
   const PAGE_SIZE_OPTIONS = Object.freeze([12, 24, 48]);
   const state = {
     clients: [],
@@ -30,6 +46,7 @@
     pageSize: 12,
   };
   const draftState = { activeId: null, baseline: "" };
+  const checklistState = { date: "", store: {} };
 
   const $ = (selector) => document.querySelector(selector);
   const escapeHtml = (value) => String(value ?? "")
@@ -48,17 +65,318 @@
     return /alibaba|阿里/i.test(String(client?.source || "")) ? "alibaba" : "email";
   };
   const displayName = (client) => {
-    if (String(client?.display_name || "").trim()) return String(client.display_name).trim();
-    if (channelOf(client) === "alibaba" && String(client?.contact_name || "").trim()) return String(client.contact_name).trim();
-    if (String(client?.company || "").trim() && String(client.company).trim() !== String(client.client_id || "").trim()) return String(client.company).trim();
-    if (String(client?.contact_name || "").trim()) return String(client.contact_name).trim();
-    return channelOf(client) === "alibaba" ? "未命名阿里客户" : text(client?.company, client?.client_id || "未命名客户");
+    const contact = String(client?.contact_name || "").trim();
+    const company = String(client?.company || "").trim();
+    const clientId = String(client?.client_id || "").trim();
+    if (contact) return contact;
+    if (company && company !== clientId) return company;
+    if (channelOf(client) === "alibaba") return "未命名阿里客户";
+    return company || clientId || String(client?.display_name || "").trim() || "未命名客户";
   };
   const boardClients = () => state.clients.filter((client) => channelOf(client) === state.activeChannel);
   const dateLabel = (value) => {
     const normalized = String(value ?? "").trim();
     return normalized || "未更新";
   };
+
+  function localDateKey(date = new Date()) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function todayKey() {
+    return localDateKey(new Date());
+  }
+
+  function parseChecklistDate(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? "").trim());
+    if (!match) return null;
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    if (Number.isNaN(date.getTime()) || localDateKey(date) !== `${match[1]}-${match[2]}-${match[3]}`) return null;
+    return date;
+  }
+
+  function isChecklistDate(value) {
+    return Boolean(parseChecklistDate(value));
+  }
+
+  function shiftDateKey(value, offset) {
+    const date = parseChecklistDate(value) || new Date();
+    const amount = Number.isFinite(Number(offset)) ? Number(offset) : 0;
+    date.setDate(date.getDate() + amount);
+    return localDateKey(date);
+  }
+
+  function checklistTaskId(task, index) {
+    const existing = String(task?.id ?? "").trim();
+    return existing || `task-${index + 1}`;
+  }
+
+  function normalizeChecklistTask(task, index) {
+    const source = task && typeof task === "object" ? task : { text: task };
+    const taskText = String(source.text ?? "").replace(/\s+/g, " ").trim().slice(0, CHECKLIST_MAX_TEXT_LENGTH);
+    if (!taskText) return null;
+    return {
+      id: checklistTaskId(source, index),
+      text: taskText,
+      completed: source.completed === true || source.completed === 1 || source.completed === "true",
+      createdAt: String(source.createdAt || "").trim(),
+      updatedAt: String(source.updatedAt || "").trim(),
+    };
+  }
+
+  function normalizeChecklistStore(value) {
+    const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    const store = {};
+    Object.entries(source).forEach(([date, tasks]) => {
+      if (!isChecklistDate(date) || !Array.isArray(tasks)) return;
+      store[date] = tasks.map((task, index) => normalizeChecklistTask(task, index)).filter(Boolean);
+    });
+    return store;
+  }
+
+  function readChecklistStore() {
+    try {
+      const raw = window.localStorage.getItem(CHECKLIST_STORAGE_KEY);
+      return normalizeChecklistStore(raw ? JSON.parse(raw) : {});
+    } catch (_error) {
+      showToast(`每日清单读取失败（${UI_ERROR_CODES.checklist}）`, true);
+      return {};
+    }
+  }
+
+  function writeChecklistStore(store) {
+    const normalized = normalizeChecklistStore(store);
+    try {
+      window.localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(normalized));
+      checklistState.store = normalized;
+      return true;
+    } catch (_error) {
+      showToast(`每日清单保存失败（${UI_ERROR_CODES.checklist}）`, true);
+      return false;
+    }
+  }
+
+  function checklistTasksForDate(date = checklistState.date) {
+    return Array.isArray(checklistState.store[date]) ? checklistState.store[date] : [];
+  }
+
+  function createChecklistTask(taskText) {
+    const now = new Date().toISOString();
+    const id = typeof window.crypto?.randomUUID === "function"
+      ? window.crypto.randomUUID()
+      : `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return { id, text: taskText, completed: false, createdAt: now, updatedAt: now };
+  }
+
+  function renderChecklistProgress(tasks) {
+    const total = tasks.length;
+    const completed = tasks.filter((task) => task.completed).length;
+    const percentage = total ? Math.round((completed / total) * 100) : 0;
+    const progressText = $("#checklist-progress-text");
+    const progressBar = $("#checklist-progress-bar");
+    if (progressText) progressText.textContent = `${completed} / ${total} 已完成 · ${percentage}%`;
+    if (progressBar) {
+      progressBar.max = total || 1;
+      progressBar.value = completed;
+      progressBar.textContent = `${percentage}%`;
+      progressBar.setAttribute("aria-valuenow", String(completed));
+      progressBar.setAttribute("aria-valuemax", String(total || 1));
+    }
+  }
+
+  function renderChecklist() {
+    const list = $("#checklist-list");
+    const empty = $("#checklist-empty");
+    if (!list || !empty) return;
+    const tasks = checklistTasksForDate();
+    list.innerHTML = tasks.map((task) => {
+      const safeId = escapeHtml(task.id);
+      const safeText = escapeHtml(task.text);
+      const completed = task.completed ? " is-complete" : "";
+      const checked = task.completed ? " checked" : "";
+      return `<li class="checklist-item${completed}" data-checklist-task-id="${safeId}">
+        <input class="checklist-checkbox" type="checkbox" data-checklist-action="toggle"${checked} aria-label="${task.completed ? "取消完成任务" : "标记任务已完成"}：${safeText}" />
+        <div class="checklist-task-body">
+          <span class="checklist-task-text" data-checklist-text>${safeText}</span>
+          <input class="checklist-edit-input" type="text" maxlength="${CHECKLIST_MAX_TEXT_LENGTH}" value="${safeText}" data-checklist-edit-input aria-label="编辑任务文本" hidden />
+        </div>
+        <div class="checklist-task-actions">
+          <button class="checklist-edit-button button button-quiet" type="button" data-checklist-action="edit" aria-label="编辑任务：${safeText}" title="编辑任务">编辑</button>
+          <div class="checklist-edit-actions" hidden>
+            <button class="button button-quiet" type="button" data-checklist-action="save">保存</button>
+            <button class="button button-quiet" type="button" data-checklist-action="cancel">取消</button>
+          </div>
+          <button class="checklist-delete-button button button-danger" type="button" data-checklist-action="delete" aria-label="删除任务：${safeText}" title="删除任务">删除</button>
+        </div>
+      </li>`;
+    }).join("");
+    empty.hidden = tasks.length > 0;
+    renderChecklistProgress(tasks);
+  }
+
+  function changeChecklistDate(date) {
+    const nextDate = isChecklistDate(date) ? String(date) : todayKey();
+    checklistState.date = nextDate;
+    const dateInput = $("#checklist-date");
+    if (dateInput) dateInput.value = nextDate;
+    renderChecklist();
+  }
+
+  function navigateChecklistDate(offset) {
+    changeChecklistDate(shiftDateKey(checklistState.date || todayKey(), offset));
+  }
+
+  function addChecklistTask(event) {
+    event.preventDefault();
+    const input = $("#checklist-input");
+    const taskText = String(input?.value ?? "").replace(/\s+/g, " ").trim();
+    if (!taskText) {
+      showToast("请输入任务内容", true);
+      input?.focus();
+      return;
+    }
+    const date = checklistState.date || todayKey();
+    const nextTasks = [...checklistTasksForDate(date), createChecklistTask(taskText.slice(0, CHECKLIST_MAX_TEXT_LENGTH))];
+    const nextStore = { ...checklistState.store, [date]: nextTasks };
+    if (!writeChecklistStore(nextStore)) return;
+    input.value = "";
+    renderChecklist();
+    input.focus();
+  }
+
+  function findChecklistTask(item) {
+    const taskId = item?.dataset.checklistTaskId;
+    return checklistTasksForDate().find((task) => task.id === taskId);
+  }
+
+  function toggleChecklistTask(item) {
+    const task = findChecklistTask(item);
+    const checkbox = item?.querySelector('[data-checklist-action="toggle"]');
+    if (!task || !checkbox) return;
+    const nextTasks = checklistTasksForDate().map((candidate) => candidate.id === task.id
+      ? { ...candidate, completed: checkbox.checked, updatedAt: new Date().toISOString() }
+      : candidate);
+    writeChecklistStore({ ...checklistState.store, [checklistState.date]: nextTasks });
+    renderChecklist();
+  }
+
+  function startChecklistTaskEdit(item) {
+    const textNode = item?.querySelector("[data-checklist-text]");
+    const input = item?.querySelector("[data-checklist-edit-input]");
+    const editButton = item?.querySelector('[data-checklist-action="edit"]');
+    const editActions = item?.querySelector(".checklist-edit-actions");
+    if (!textNode || !input || !editButton || !editActions) return;
+    textNode.hidden = true;
+    input.hidden = false;
+    editButton.hidden = true;
+    editActions.hidden = false;
+    input.focus();
+    input.select();
+  }
+
+  function cancelChecklistTaskEdit(item) {
+    const task = findChecklistTask(item);
+    const textNode = item?.querySelector("[data-checklist-text]");
+    const input = item?.querySelector("[data-checklist-edit-input]");
+    const editButton = item?.querySelector('[data-checklist-action="edit"]');
+    const editActions = item?.querySelector(".checklist-edit-actions");
+    if (!task || !textNode || !input || !editButton || !editActions) return;
+    input.value = task.text;
+    textNode.hidden = false;
+    input.hidden = true;
+    editButton.hidden = false;
+    editActions.hidden = true;
+  }
+
+  function saveChecklistTaskEdit(item) {
+    const task = findChecklistTask(item);
+    const input = item?.querySelector("[data-checklist-edit-input]");
+    const nextText = String(input?.value ?? "").replace(/\s+/g, " ").trim();
+    if (!task || !input) return;
+    if (!nextText) {
+      showToast("任务内容不能为空", true);
+      input.focus();
+      return;
+    }
+    const nextTasks = checklistTasksForDate().map((candidate) => candidate.id === task.id
+      ? { ...candidate, text: nextText.slice(0, CHECKLIST_MAX_TEXT_LENGTH), updatedAt: new Date().toISOString() }
+      : candidate);
+    if (writeChecklistStore({ ...checklistState.store, [checklistState.date]: nextTasks })) renderChecklist();
+  }
+
+  function deleteChecklistTask(item) {
+    const task = findChecklistTask(item);
+    if (!task || !window.confirm(`确定删除任务“${task.text}”吗？`)) return;
+    const nextTasks = checklistTasksForDate().filter((candidate) => candidate.id !== task.id);
+    const nextStore = { ...checklistState.store };
+    if (nextTasks.length) nextStore[checklistState.date] = nextTasks;
+    else delete nextStore[checklistState.date];
+    if (writeChecklistStore(nextStore)) renderChecklist();
+  }
+
+  function handleChecklistClick(event) {
+    const item = event.target.closest("[data-checklist-task-id]");
+    const actionNode = event.target.closest("[data-checklist-action]");
+    if (!item || !actionNode) return;
+    const action = actionNode.dataset.checklistAction;
+    if (action === "toggle") toggleChecklistTask(item);
+    else if (action === "edit") startChecklistTaskEdit(item);
+    else if (action === "save") saveChecklistTaskEdit(item);
+    else if (action === "cancel") cancelChecklistTaskEdit(item);
+    else if (action === "delete") deleteChecklistTask(item);
+  }
+
+  function handleChecklistKeydown(event) {
+    const input = event.target.closest("[data-checklist-edit-input]");
+    if (!input) return;
+    const item = input.closest("[data-checklist-task-id]");
+    if (event.key === "Enter") {
+      event.preventDefault();
+      saveChecklistTaskEdit(item);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancelChecklistTaskEdit(item);
+    }
+  }
+
+  function initializeChecklist() {
+    checklistState.store = readChecklistStore();
+    changeChecklistDate(todayKey());
+  }
+
+  function normalizeTags(value) {
+    const values = Array.isArray(value) ? value : String(value ?? "").split(/[,，;；\r\n]+/);
+    const tags = [];
+    const seen = new Set();
+    values.forEach((raw) => {
+      const candidate = String(raw ?? "").replace(/\s+/g, " ").trim();
+      if (!candidate) return;
+      const key = candidate.toLocaleLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      tags.push(candidate);
+    });
+    return tags;
+  }
+
+  function tagsText(value) {
+    return normalizeTags(value).join(", ");
+  }
+
+  function renderTagChips(value, limit = null) {
+    const tags = normalizeTags(value);
+    if (!tags.length) return "";
+    const visible = limit == null ? tags : tags.slice(0, limit);
+    const chips = visible.map((tag) => `<span class="tag-chip" title="${escapeHtml(tag)}">${escapeHtml(tag)}</span>`);
+    if (limit != null && tags.length > visible.length) {
+      chips.push(`<span class="tag-chip tag-chip-more" title="还有 ${tags.length - visible.length} 个标签">+${tags.length - visible.length}</span>`);
+    }
+    return chips.join("");
+  }
 
   function safePageSize(value) {
     const numeric = Number.parseInt(value, 10);
@@ -248,6 +566,7 @@
           client.product_raw, client.product_name, client.fragrance_requirement, client.product_application,
           client.product_quantity, client.product_specification, client.target_price, client.other_requirements,
           client.product_codes, client.product_names, JSON.stringify(client.product_items || []),
+          client.custom_tags, normalizeTags(client.custom_tags).join(" "),
           client.source, client.status, client.next_action, client.notes, client.public_summary,
         ].join(" ").toLocaleLowerCase();
         if (!haystack.includes(filters.search)) return false;
@@ -325,25 +644,25 @@
       const isAlibaba = channelOf(client) === "alibaba";
       const tier = client.icp_tier || "C";
       const score = client.icp_score == null ? "—" : client.icp_score;
-      const contact = text(client.contact_name, "联系人待确认");
-      const subtitle = isAlibaba ? text(client.company, "公司待补充") : contact;
+      const subtitle = text(client.company, "公司待补充");
       const next = text(client.next_action, "尚未设置下一步");
       const title = displayName(client);
-      const primaryLabel = isAlibaba ? "地址" : "地区";
-      const primaryValue = isAlibaba ? client.address : client.country_region;
-      const secondaryLabel = isAlibaba ? "电话" : "产品";
-      const secondaryValue = isAlibaba ? (client.known_phone || client.known_email) : (client.product_interest || client.product_name);
-      const tertiary = isAlibaba ? (client.product_interest || client.product_application || client.product_raw) : "";
+      const primaryLabel = "电话";
+      const primaryValue = client.known_phone || client.known_email;
+      const secondaryLabel = "地址";
+      const secondaryValue = client.address || client.country_region;
+      const tertiary = client.product_interest || client.product_name || client.product_application || client.product_raw;
       return `<button class="client-card ${isAlibaba ? "channel-alibaba" : "channel-email"} tier-${escapeHtml(tier.toLowerCase())}" type="button" data-client-id="${escapeHtml(client.client_id)}" data-channel="${isAlibaba ? "alibaba" : "email"}" aria-label="查看 ${escapeHtml(title)} 详情">
         <div class="card-top">
           <div class="card-title"><h3 title="${escapeHtml(title)}">${escapeHtml(title)}</h3><p class="card-contact" title="${escapeHtml(subtitle)}">${escapeHtml(subtitle)}</p></div>
           <span class="tier-badge" title="ICP ${escapeHtml(tier)} 级">${escapeHtml(tier)}</span>
         </div>
         <div class="card-meta"><span class="status-chip" data-status="${escapeHtml(client.status || "")}">${escapeHtml(statusLabel(client.status || "未设置"))}</span><span class="score">${escapeHtml(String(score))}<span> / 100</span></span></div>
+        ${renderTagChips(client.custom_tags, 3) ? `<div class="card-tags" aria-label="自定义标签">${renderTagChips(client.custom_tags, 3)}</div>` : ""}
         <div class="card-divider"></div>
         ${cardField(primaryLabel, primaryValue)}
         ${cardField(secondaryLabel, secondaryValue)}
-        ${isAlibaba ? cardField("产品", tertiary) : ""}
+        ${cardField("产品", tertiary)}
         <div class="card-action"><span class="card-action-label">下一步</span><span class="card-action-value" title="${escapeHtml(next)}">${escapeHtml(next)}</span></div>
         <div class="card-footer"><span class="card-source">来源 · ${escapeHtml(text(client.source))}</span><span>更新 · ${escapeHtml(dateLabel(client.updated_at))}</span></div>
       </button>`;
@@ -377,6 +696,30 @@
     return `<div class="detail-item"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(text(value))}</dd></div>`;
   }
 
+  function detailLines(value) {
+    return String(value ?? "")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/\r\n?/g, "\n")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+  }
+
+  function detailMultilineItem(label, value, field) {
+    const lines = detailLines(value);
+    const visibleLines = lines.slice(0, DETAIL_LINE_LIMIT);
+    const extraLines = lines.slice(DETAIL_LINE_LIMIT);
+    const extraId = `detail-${field}-extra`;
+    const lineMarkup = (line) => `<span class="detail-line">${escapeHtml(line)}</span>`;
+    const visibleMarkup = visibleLines.length ? visibleLines.map(lineMarkup).join("") : '<span class="detail-empty">未填写</span>';
+    const extraMarkup = extraLines.map(lineMarkup).join("");
+    const toggle = extraLines.length
+      ? `<button class="detail-expand-toggle" type="button" data-detail-expand="${extraId}" data-remaining="${extraLines.length}" aria-expanded="false" aria-controls="${extraId}">展开剩余 ${extraLines.length} 条</button>`
+      : "";
+    const count = lines.length ? ` <small class="detail-line-count">${lines.length} 条</small>` : "";
+    return `<div class="detail-item detail-item-multiline"><dt>${escapeHtml(label)}${count}</dt><dd><div class="detail-line-list">${visibleMarkup}</div>${extraLines.length ? `<div id="${extraId}" class="detail-lines-extra" hidden>${extraMarkup}</div>` : ""}${toggle}</dd></div>`;
+  }
+
   function renderDetail(client) {
     if (!client) return;
     const isAlibaba = channelOf(client) === "alibaba";
@@ -391,24 +734,25 @@
         <div class="detail-stat"><span class="detail-stat-label">最近更新</span><strong class="detail-stat-value">${escapeHtml(dateLabel(client.updated_at))}</strong></div>
       </div>
       <section class="detail-section"><h3>基本资料</h3><dl class="detail-grid">
-        ${detailItem("客户 ID", client.client_id)}
         ${detailItem("联系人", client.contact_name)}
+        ${detailItem("电话", client.known_phone)}
+        ${detailItem("地址", client.address)}
+        ${detailItem("公司", client.company)}
         ${detailItem("职位", client.title)}
         ${detailItem("地区", client.country_region)}
-        ${detailItem("地址", client.address)}
         ${detailItem("市场", client.market_bucket)}
         ${detailItem("板块", isAlibaba ? "阿里客户" : "邮件客户")}
         ${detailItem("来源", client.source)}
         ${detailItem("邮箱", client.known_email)}
-        ${detailItem("电话", client.known_phone)}
         ${detailItem("渠道类型", client.channel_type)}
         ${detailItem("产品兴趣", client.product_interest)}
+        ${detailItem("客户 ID", client.client_id)}
         ${detailItem("创建时间", client.created_at)}
         ${detailItem("详情档案", client.has_profile ? client.source_file : "索引 / pipeline 记录")}
-      </dl></section>
+      </dl><div class="detail-tags" aria-label="自定义标签"><span class="detail-tags-label">自定义标签</span><div class="tag-list">${renderTagChips(client.custom_tags) || '<span class="detail-empty">未设置</span>'}</div></div></section>
       ${isAlibaba ? `<section class="detail-section"><h3>Alibaba 产品信息</h3><dl class="detail-grid">
-        ${detailItem("内部编码", client.product_codes)}
-        ${detailItem("批量产品名称", client.product_names)}
+        ${detailMultilineItem("内部编码", client.product_codes, "product-codes")}
+        ${detailMultilineItem("批量产品名称", client.product_names, "product-names")}
         ${detailItem("批量产品条数", Array.isArray(client.product_items) ? client.product_items.length : 0)}
         ${detailItem("产品名称", client.product_name)}
         ${detailItem("香型要求", client.fragrance_requirement)}
@@ -417,7 +761,11 @@
         ${detailItem("产品规格", client.product_specification)}
         ${detailItem("目标价格", client.target_price)}
         ${detailItem("其他要求", client.other_requirements)}
-      </dl>${client.product_raw ? `<h4 class="detail-subheading">产品原文</h4>${markdownToHtml(client.product_raw)}` : ""}</section>` : ""}
+        ${detailMultilineItem("产品原文", client.product_raw, "product-raw")}
+      </dl><div class="bulk-product-actions detail-product-copy-actions" aria-label="复制 Alibaba 产品信息">
+        <button class="button button-quiet" type="button" data-detail-copy-field="product_codes">一键复制内部编码</button>
+        <button class="button button-quiet" type="button" data-detail-copy-field="product_names">一键复制产品名称</button>
+      </div></section>` : ""}
       <section class="detail-section"><h3>下一步行动</h3>${markdownToHtml(client.next_action)}</section>
       <section class="detail-section"><h3>公开摘要</h3>${markdownToHtml(client.public_summary)}</section>
       <section class="detail-section"><h3>ICP 判断</h3>${markdownToHtml(client.icp_rationale)}</section>
@@ -444,7 +792,7 @@
     if (!client) return;
     const editFields = [
       "company", "contact_name", "title", "country_region", "address", "market_bucket",
-      "channel_type", "known_email", "known_phone", "product_interest", "product_raw",
+      "channel_type", "known_email", "known_phone", "custom_tags", "product_interest", "product_raw",
       "product_codes", "product_names", "icp_tier", "icp_score", "status", "next_action", "notes",
     ];
     const form = $("#edit-form");
@@ -454,16 +802,23 @@
       if (field === "status") input.value = client.status || "new";
       else if (field === "icp_tier") input.value = client.icp_tier || "C";
       else if (field === "icp_score") input.value = Number.isFinite(Number(client.icp_score)) ? String(client.icp_score) : "0";
+      else if (field === "custom_tags") input.value = tagsText(client.custom_tags);
       else input.value = client[field] || "";
     });
     const isAlibaba = channelOf(client) === "alibaba";
     $("#edit-company").required = !isAlibaba;
     $("#edit-company-label").textContent = isAlibaba ? "公司名称" : "公司名称 *";
+    $("#edit-contact-raw").placeholder = isAlibaba ? CONTACT_PASTE_PLACEHOLDER_ALI : CONTACT_PASTE_PLACEHOLDER_EMAIL;
     $("#edit-product-parse-status").textContent = "手工编码和名称不会被自动覆盖";
+    resetContactParser(editContactParser, "#edit-contact-raw", "#edit-contact-parse-status");
+    CONTACT_PARSE_FIELDS.forEach((field) => {
+      const input = form.elements.namedItem(field);
+      if (input && String(input.value || "").trim()) editContactParser.manual.add(field);
+    });
     $("#detail-view").hidden = true;
     $("#detail-actions").hidden = true;
     form.hidden = false;
-    window.setTimeout(() => $("#edit-contact-name").focus(), 0);
+    window.setTimeout(() => $("#edit-contact-raw").focus(), 0);
   }
 
   function showDetailView() {
@@ -476,7 +831,7 @@
 
   function formObject(form) {
     const result = {};
-    const preserveMultiline = new Set(["product_raw", "product_codes", "product_names", "other_requirements", "notes"]);
+    const preserveMultiline = new Set(["product_raw", "product_codes", "product_names", "other_requirements", "notes", "address"]);
     new FormData(form).forEach((value, key) => {
       result[key] = typeof value === "string" && !preserveMultiline.has(key) ? value.trim() : value;
     });
@@ -579,6 +934,7 @@
     closeDialog($("#add-dialog"));
     $("#add-form").reset();
     resetProductParser();
+    resetContactParser(addContactParser, "#add-contact-raw", "#add-contact-parse-status");
     draftState.activeId = null;
     draftState.baseline = "";
   }
@@ -652,13 +1008,132 @@
     "product_codes",
     "product_names",
   ];
-  const productParserState = { manual: new Set(), manualInterest: false, suggested: {}, suggestedInterest: "", timer: null, requestId: 0, applying: false };
+  const productParserState = { manual: new Set(), manualInterest: false, manualRaw: false, suggested: {}, suggestedInterest: "", suggestedRaw: "", timer: null, requestId: 0, applying: false };
+  function newContactParserState() {
+    return { manual: new Set(), suggested: {}, timer: null, requestId: 0, applying: false };
+  }
+  const addContactParser = newContactParserState();
+  const editContactParser = newContactParserState();
+
+  function resetContactParser(parser, rawSelector, statusSelector) {
+    parser.manual = new Set();
+    parser.suggested = {};
+    parser.requestId += 1;
+    parser.applying = false;
+    if (parser.timer) window.clearTimeout(parser.timer);
+    parser.timer = null;
+    const raw = $(rawSelector);
+    if (raw) raw.value = "";
+    const status = $(statusSelector);
+    if (status) status.textContent = "";
+  }
+
+  function applyContactFields(form, parser, fields) {
+    const filled = [];
+    parser.applying = true;
+    CONTACT_PARSE_FIELDS.forEach((field) => {
+      const input = form.elements.namedItem(field);
+      if (!input) return;
+      const suggestion = String(fields[field] || "").trim();
+      const current = String(input.value || "").trim();
+      const previous = String(parser.suggested[field] || "").trim();
+      parser.suggested[field] = suggestion;
+      if (!suggestion) return;
+      if (parser.manual.has(field) && current && current !== previous) return;
+      input.value = suggestion;
+      filled.push(CONTACT_FIELD_LABELS[field] || field);
+    });
+    parser.applying = false;
+    return filled;
+  }
+
+  function scheduleContactParse(parser, rawSelector, statusSelector, formSelector) {
+    if (parser.timer) window.clearTimeout(parser.timer);
+    const requestId = ++parser.requestId;
+    const raw = $(rawSelector)?.value.trim() || "";
+    const status = $(statusSelector);
+    if (!raw) {
+      if (status) status.textContent = "";
+      return;
+    }
+    if (status) status.textContent = "正在识别姓名、电话和地址…";
+    parser.timer = window.setTimeout(async () => {
+      try {
+        const body = await requestJSON("/api/contact-info/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ raw_text: raw }),
+        });
+        if (requestId !== parser.requestId) return;
+        const fields = body.fields || body;
+        const filled = applyContactFields($(formSelector), parser, fields);
+        const productExcerpt = String(body.product_excerpt || "").trim();
+        const productSynced = await fillAlibabaProductsFromContact(productExcerpt, formSelector);
+        if (status) {
+          if (filled.length && productSynced > 0) status.textContent = `已填入${filled.join("、")}，并同步识别 ${productSynced} 项产品`;
+          else if (filled.length && productSynced < 0) status.textContent = `已填入${filled.join("、")}，正在同步识别产品…`;
+          else if (filled.length) status.textContent = `已填入${filled.join("、")}，可继续手工修改`;
+          else status.textContent = "暂未识别出姓名、电话或地址，可继续手工填写";
+        }
+      } catch (error) {
+        if (status) status.textContent = `${error.message || "识别暂不可用"}（${UI_ERROR_CODES.contactParse}），仍可手工填写`;
+      }
+    }, 420);
+  }
+
+  function bindContactParser(parser, rawSelector, statusSelector, formSelector) {
+    const raw = $(rawSelector);
+    const form = $(formSelector);
+    if (!raw || !form) return;
+    raw.addEventListener("input", () => scheduleContactParse(parser, rawSelector, statusSelector, formSelector));
+    raw.addEventListener("paste", () => window.setTimeout(() => scheduleContactParse(parser, rawSelector, statusSelector, formSelector), 0));
+    CONTACT_PARSE_FIELDS.forEach((field) => {
+      const input = form.elements.namedItem(field);
+      if (!input) return;
+      input.addEventListener("input", () => {
+        if (!parser.applying) parser.manual.add(field);
+      });
+    });
+  }
+
+  function isAlibabaContactForm(formSelector) {
+    if (formSelector === "#add-form") return state.activeChannel === "alibaba";
+    const client = state.clients.find((item) => item.client_id === state.selectedClientId);
+    return channelOf(client) === "alibaba";
+  }
+
+  async function fillAlibabaProductsFromContact(excerpt, formSelector) {
+    if (!excerpt || !isAlibabaContactForm(formSelector)) return 0;
+    const isAdd = formSelector === "#add-form";
+    const rawInput = isAdd ? $("#add-product-raw") : $("#edit-product-raw");
+    const codesInput = isAdd ? $("#add-product-codes") : $("#edit-product-codes");
+    const namesInput = isAdd ? $("#add-product-names") : $("#edit-product-names");
+    if (!rawInput) return 0;
+    const current = String(rawInput.value || "").trim();
+    const previous = String(productParserState.suggestedRaw || "").trim();
+    if (isAdd) {
+      if (productParserState.manualRaw && current && current !== previous) return 0;
+    } else if (current || String(codesInput?.value || "").trim() || String(namesInput?.value || "").trim()) {
+      return 0;
+    }
+    rawInput.value = excerpt;
+    productParserState.suggestedRaw = excerpt;
+    if (isAdd) {
+      scheduleProductParse();
+      return -1;
+    }
+    await parseEditProducts();
+    const items = String($("#edit-product-codes")?.value || "").split(/\r?\n/).filter((line) => line.trim());
+    return items.length;
+  }
 
   function resetProductParser() {
     productParserState.manual = new Set();
     productParserState.manualInterest = false;
+    productParserState.manualRaw = false;
     productParserState.suggested = {};
     productParserState.suggestedInterest = "";
+    productParserState.suggestedRaw = "";
     productParserState.requestId += 1;
     if (productParserState.timer) window.clearTimeout(productParserState.timer);
     productParserState.timer = null;
@@ -683,10 +1158,11 @@
     source.value = isAlibaba ? "alibaba" : "email_manual";
     source.disabled = true;
     $("#product-parser-fields").hidden = !isAlibaba;
+    $("#add-contact-raw").placeholder = isAlibaba ? CONTACT_PASTE_PLACEHOLDER_ALI : CONTACT_PASTE_PLACEHOLDER_EMAIL;
     $("#add-dialog-title").textContent = isAlibaba ? "新增阿里客户" : "新增邮件客户";
     $("#add-dialog-intro").textContent = isAlibaba
-      ? "阿里客户的姓名、公司、地址、产品与备注都可以先留空，保存后会生成安全唯一档案。"
-      : "录入后会生成客户 Markdown，并同步索引与 pipeline。邮件客户需要公司名称。";
+      ? "可先粘贴阿里询盘整段文字，系统会识别姓名、电话、地址，并拆分产品列表。其他字段都可以先留空。"
+      : "录入后会生成客户 Markdown，并同步索引与 pipeline。邮件客户需要公司名称。粘贴整段联系信息可自动填入姓名、电话和地址。";
     if (status && !status.value) status.value = "new";
   }
 
@@ -694,6 +1170,7 @@
     const form = $("#add-form");
     form.reset();
     resetProductParser();
+    resetContactParser(addContactParser, "#add-contact-raw", "#add-contact-parse-status");
     setAddFormChannel();
     $("#add-form-error").hidden = true;
     if ([...$("#add-status").options].some((option) => option.value === "new")) $("#add-status").value = "new";
@@ -711,7 +1188,7 @@
     }
     captureDraftBaseline();
     openDialog($("#add-dialog"));
-    window.setTimeout(() => $("#add-company").focus(), 0);
+    window.setTimeout(() => $("#add-contact-raw").focus(), 0);
   }
 
   function scheduleProductParse() {
@@ -773,9 +1250,9 @@
     return String(value ?? "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.trim()).join("\n");
   }
 
-  async function copyProductColumn(field, label) {
+  async function copyProductColumn(field, label, valueOverride) {
     const input = $("#add-form").elements.namedItem(field);
-    const value = normalizedCopyLines(input?.value);
+    const value = normalizedCopyLines(valueOverride === undefined ? input?.value : valueOverride);
     const rows = value.split("\n");
     const hasContent = rows.some((line) => line.length > 0);
     if (!hasContent) {
@@ -803,6 +1280,15 @@
     } catch (_error) {
       showToast(`${label}复制失败（${UI_ERROR_CODES.bulkCopy}），请手动选择复制`, true);
     }
+  }
+
+  function copyDetailProductColumn(field) {
+    const client = state.clients.find((item) => item.client_id === state.selectedClientId);
+    if (!client) {
+      showToast(`${DETAIL_COPY_LABELS[field] || "产品信息"}复制失败（${UI_ERROR_CODES.bulkCopy}），请先重新打开详情`, true);
+      return Promise.resolve();
+    }
+    return copyProductColumn(field, DETAIL_COPY_LABELS[field] || "产品信息", client[field] ?? "");
   }
 
   function localValidateNew(data) {
@@ -970,9 +1456,31 @@
       const pageButton = event.target.closest("[data-page]");
       if (pageButton) goToPage(pageButton.dataset.page);
     });
+    $("#checklist-form").addEventListener("submit", addChecklistTask);
+    $("#checklist-prev-day").addEventListener("click", () => navigateChecklistDate(-1));
+    $("#checklist-next-day").addEventListener("click", () => navigateChecklistDate(1));
+    $("#checklist-today").addEventListener("click", () => changeChecklistDate(todayKey()));
+    $("#checklist-date").addEventListener("change", (event) => changeChecklistDate(event.currentTarget.value));
+    $("#checklist-list").addEventListener("click", handleChecklistClick);
+    $("#checklist-list").addEventListener("keydown", handleChecklistKeydown);
     $("#client-grid").addEventListener("click", (event) => {
       const card = event.target.closest("[data-client-id]");
       if (card) showClientDetail(card.dataset.clientId);
+    });
+    $("#detail-view").addEventListener("click", (event) => {
+      const copyButton = event.target.closest("[data-detail-copy-field]");
+      if (copyButton) {
+        copyDetailProductColumn(copyButton.dataset.detailCopyField);
+        return;
+      }
+      const toggle = event.target.closest("[data-detail-expand]");
+      if (!toggle) return;
+      const extra = document.getElementById(toggle.dataset.detailExpand);
+      if (!extra) return;
+      const expanded = toggle.getAttribute("aria-expanded") === "true";
+      extra.hidden = expanded;
+      toggle.setAttribute("aria-expanded", expanded ? "false" : "true");
+      toggle.textContent = expanded ? `展开剩余 ${toggle.dataset.remaining} 条` : "收起";
     });
     ["alibaba", "email"].forEach((channel) => {
       $(`#channel-${channel}`).addEventListener("click", () => {
@@ -1002,7 +1510,12 @@
     $("#edit-form").addEventListener("submit", submitEdit);
     $("#edit-parse-products").addEventListener("click", parseEditProducts);
     $("#add-form").addEventListener("submit", submitNew);
-    $("#add-product-raw").addEventListener("input", scheduleProductParse);
+    bindContactParser(addContactParser, "#add-contact-raw", "#add-contact-parse-status", "#add-form");
+    bindContactParser(editContactParser, "#edit-contact-raw", "#edit-contact-parse-status", "#edit-form");
+    $("#add-product-raw").addEventListener("input", () => {
+      if (!productParserState.applying) productParserState.manualRaw = true;
+      scheduleProductParse();
+    });
     $("#copy-product-codes").addEventListener("click", () => copyProductColumn("product_codes", "内部编码"));
     $("#copy-product-names").addEventListener("click", () => copyProductColumn("product_names", "产品名称"));
     productSplitFields.forEach((field) => {
@@ -1042,6 +1555,7 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     bindEvents();
+    initializeChecklist();
     updateDraftCount();
     loadData();
   });

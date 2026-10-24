@@ -88,7 +88,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .eyebrow { margin: 0 0 3px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: 0.16em; line-height: 1.25; }
 .eyebrow-amber { color: var(--amber); }
 
-.topbar-actions { gap: 20px; }
+.topbar { flex-wrap: wrap; padding-block: 14px; }
+.topbar-actions { gap: 10px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
 
 .health-indicator { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .health-dot { width: 7px; height: 7px; display: inline-block; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 4px rgba(190, 124, 48, 0.11); }
@@ -124,7 +125,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .hero-note strong { color: var(--ink); font-size: 12px; }
 .hero-note-icon { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; color: var(--amber); background: var(--amber-light); font-size: 15px; }
 
-.channel-tabs { margin: 0 0 16px; padding: 7px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 253, 249, 0.72); box-shadow: var(--shadow-soft); }
+.channel-tabs { margin: 0; padding: 4px; display: flex; align-items: center; flex-shrink: 0; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 253, 249, 0.72); box-shadow: var(--shadow-soft); }
 .channel-tab-list { min-width: 0; display: flex; align-items: center; gap: 5px; }
 .channel-tab { min-height: 44px; padding: 7px 14px; display: inline-flex; align-items: center; gap: 10px; border: 1px solid transparent; border-radius: 10px; color: var(--muted); background: transparent; font-size: 13px; font-weight: 750; }
 .channel-tab:hover { color: var(--ink); background: var(--paper); }
@@ -144,6 +145,39 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .stat-card-main .stat-value { color: #fffdf8; }
 .stat-hint { margin-top: auto; color: var(--muted); font-size: 11px; }
 .stat-card-main .stat-hint { color: #9ab8ab; }
+
+.checklist-panel { margin-top: 18px; padding: 21px 22px 18px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 253, 249, 0.82); box-shadow: var(--shadow-soft); }
+.checklist-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.checklist-header h2 { margin: 0; color: var(--ink-deep); font-size: 20px; letter-spacing: -0.025em; }
+.checklist-intro { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.checklist-progress { min-width: 190px; display: grid; align-self: center; gap: 7px; }
+.checklist-progress strong { color: var(--ink-soft); font-size: 12px; text-align: right; }
+.checklist-progress progress { width: 190px; height: 8px; accent-color: var(--green); }
+.checklist-toolbar { margin-top: 18px; padding-top: 15px; display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; border-top: 1px solid var(--line); }
+.checklist-date-nav { min-width: 0; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 7px; }
+.checklist-nav-button { width: 38px; height: 38px; border-radius: 10px; font-size: 19px; }
+.checklist-date-field { min-width: 145px; display: flex; flex: 1 1 145px; flex-direction: column; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 700; }
+.checklist-date-field input { width: 100%; height: 38px; padding: 0 9px; border: 1px solid var(--line); border-radius: 9px; outline: none; color: var(--ink-soft); background: #fffefa; font-size: 12px; }
+.checklist-date-field input:focus { border-color: rgba(44, 118, 89, 0.7); box-shadow: 0 0 0 3px rgba(44, 118, 89, 0.1); }
+.checklist-date-nav .button { min-height: 38px; padding: 7px 11px; font-size: 11px; }
+.checklist-add-form { min-width: 0; display: flex; flex: 1 1 390px; align-items: flex-end; gap: 8px; }
+.checklist-add-form input { min-width: 0; height: 40px; flex: 1 1 auto; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; outline: none; color: var(--ink); background: #fffefa; font-size: 13px; }
+.checklist-add-form input:focus { border-color: rgba(44, 118, 89, 0.7); box-shadow: 0 0 0 3px rgba(44, 118, 89, 0.1); }
+.checklist-add-form input::placeholder { color: #abb0aa; }
+.checklist-add-form .button { min-height: 40px; white-space: nowrap; }
+.checklist-list { margin: 16px 0 0; padding: 0; display: grid; gap: 8px; list-style: none; }
+.checklist-item { min-width: 0; padding: 11px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.checklist-item:hover { border-color: var(--line-strong); }
+.checklist-checkbox { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--green); }
+.checklist-task-body { min-width: 0; }
+.checklist-task-text { display: block; overflow-wrap: anywhere; color: var(--ink-soft); font-size: 13px; line-height: 1.45; }
+.checklist-item.is-complete .checklist-task-text { color: var(--muted); text-decoration: line-through; }
+.checklist-edit-input { width: 100%; min-width: 0; height: 35px; padding: 0 9px; border: 1px solid var(--line); border-radius: 8px; outline: none; color: var(--ink); background: #fffefa; font-size: 13px; }
+.checklist-edit-input:focus { border-color: rgba(44, 118, 89, 0.7); box-shadow: 0 0 0 3px rgba(44, 118, 89, 0.1); }
+.checklist-edit-input[hidden], .checklist-edit-actions[hidden], .checklist-empty[hidden] { display: none; }
+.checklist-task-actions, .checklist-edit-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+.checklist-task-actions .button { min-height: 32px; padding: 6px 9px; font-size: 11px; }
+.checklist-empty { margin: 16px 0 0; padding: 18px; border: 1px dashed var(--line-strong); border-radius: 10px; color: var(--muted); background: rgba(255, 253, 249, 0.42); font-size: 12px; text-align: center; }
 
 .toolbar { margin-top: 30px; padding: 14px; display: flex; align-items: center; gap: 13px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 253, 249, 0.73); box-shadow: var(--shadow-soft); }
 .search-wrap { min-width: 280px; flex: 1 1 320px; position: relative; }
@@ -185,6 +219,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .status-chip[data-status="won"] { color: #6d571b; background: var(--amber-light); }
 .score { color: var(--amber); font-size: 12px; font-weight: 800; white-space: nowrap; }
 .score span { color: var(--muted); font-weight: 500; }
+.card-tags, .tag-list { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.card-tags { margin-top: 11px; }
+.tag-chip { max-width: 180px; overflow: hidden; padding: 3px 7px; border: 1px solid #d6e4da; border-radius: 999px; color: #28674f; background: var(--green-light); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.tag-chip-more { border-color: #ead8bd; color: #80501d; background: var(--amber-light); }
 .card-divider { height: 1px; margin: 16px 0 13px; background: var(--line); }
 .card-field { min-width: 0; display: flex; align-items: flex-start; gap: 9px; margin-top: 8px; font-size: 12px; }
 .card-field:first-of-type { margin-top: 0; }
@@ -234,7 +272,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .client-dialog::backdrop { background: rgba(15, 43, 37, 0.38); backdrop-filter: blur(3px); }
 .dialog-frame { max-height: min(880px, calc(100vh - 28px)); padding: 28px; overflow: auto; }
 .dialog-header { justify-content: space-between; gap: 20px; }
-.dialog-header h2 { max-width: 600px; margin: 0; overflow: hidden; color: var(--ink-deep); font-family: Georgia, "Times New Roman", serif; font-size: 30px; font-weight: 500; letter-spacing: -0.04em; text-overflow: ellipsis; white-space: nowrap; }
+.dialog-header > div { min-width: 0; flex: 1 1 auto; }
+.dialog-header h2 { width: 100%; max-width: 600px; margin: 0; overflow: hidden; color: var(--ink-deep); font-family: Georgia, "Times New Roman", serif; font-size: 30px; font-weight: 500; letter-spacing: -0.04em; text-overflow: ellipsis; white-space: nowrap; }
 .icon-button { width: 35px; height: 35px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--ink-soft); background: transparent; font-size: 24px; line-height: 1; }
 .icon-button:hover { color: var(--ink); background: var(--paper); }
 .dialog-intro { margin: 9px 0 23px; color: var(--muted); font-size: 12px; }
@@ -251,6 +290,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .detail-item { min-width: 0; padding: 9px 0; display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 8px; border-bottom: 1px solid var(--line); font-size: 12px; }
 .detail-item dt { color: var(--muted); }
 .detail-item dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--ink-soft); white-space: pre-wrap; }
+.detail-item-multiline dd { min-width: 0; }
+.detail-line-list, .detail-lines-extra { min-width: 0; display: grid; gap: 4px; }
+.detail-lines-extra[hidden] { display: none; }
+.detail-line { display: block; overflow-wrap: anywhere; white-space: pre-wrap; }
+.detail-line-count { color: var(--muted); font-size: 10px; font-weight: 500; white-space: nowrap; }
+.detail-empty { color: var(--muted); }
+.detail-expand-toggle { margin-top: 7px; padding: 3px 0; border: 0; color: var(--amber); background: transparent; font-size: 11px; font-weight: 750; text-align: left; }
+.detail-expand-toggle:hover { color: #80501d; text-decoration: underline; }
+.detail-tags { margin-top: 13px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); font-size: 12px; }
+.detail-tags-label { flex: 0 0 76px; color: var(--muted); }
+.detail-product-copy-actions { justify-content: flex-start; }
 .detail-copy { margin: 0; padding: 13px; overflow-wrap: anywhere; border: 1px solid var(--line); border-radius: 10px; color: var(--ink-soft); background: var(--paper); font-size: 12px; white-space: pre-wrap; }
 .detail-copy p { margin: 0 0 8px; }
 .detail-copy p:last-child { margin-bottom: 0; }
@@ -265,6 +315,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .form-section-title:first-child { margin-top: 0; }
 .product-parser-section { margin-top: 4px; padding: 14px; border: 1px solid #ead8bd; border-radius: 12px; background: #fffaf2; }
 .product-parser-section .form-section-title { margin-top: 0; color: #80501d; }
+.contact-parser-section { margin: 0 0 14px; padding: 14px; border: 1px solid #cfe0d4; border-radius: 12px; background: #f4faf6; }
+.contact-parser-section .form-section-title { margin-top: 0; color: #1f5b46; }
+.contact-parser-section textarea { min-height: 92px; }
+.contact-priority-grid { margin-bottom: 4px; }
+.contact-priority-grid textarea { min-height: 74px; }
 .field-help { margin: -4px 0 13px; color: var(--muted); font-size: 11px; }
 .field-status { min-height: 16px; color: var(--amber); font-size: 11px; font-weight: 500; }
 .product-split-grid { margin-top: 12px; }
@@ -325,19 +380,28 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 720px) {
   .app-shell { padding-inline: 16px; }
   .topbar { min-height: 74px; }
-  .topbar-actions { gap: 9px; }
+  .topbar-actions { width: 100%; gap: 9px; justify-content: flex-start; }
   .health-indicator { display: none; }
   .button-primary { padding-inline: 12px; }
   .hero { align-items: flex-start; flex-direction: column; gap: 18px; padding: 37px 0 28px; }
   .hero h2 { font-size: 34px; }
   .hero-note { width: 100%; }
-  .channel-tabs { align-items: stretch; flex-direction: column; }
+  .channel-tabs { max-width: 100%; }
   .channel-tab-list { width: 100%; }
   .channel-tab { flex: 1; justify-content: center; }
   .export-button { width: 100%; }
   .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stat-card { min-height: 116px; padding: 16px; }
   .stat-value { margin-top: 9px; font-size: 30px; }
+  .checklist-panel { padding: 18px 16px; }
+  .checklist-header { flex-direction: column; gap: 14px; }
+  .checklist-progress { width: 100%; }
+  .checklist-progress strong { text-align: left; }
+  .checklist-progress progress { width: 100%; }
+  .checklist-toolbar { align-items: stretch; flex-direction: column; }
+  .checklist-date-nav { width: 100%; }
+  .checklist-date-field { min-width: 120px; }
+  .checklist-add-form { width: 100%; flex-basis: auto; }
   .filter-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .select-wrap select, .sort-select select { width: 100%; min-width: 0; }
   .filter-row .button { grid-column: 1 / -1; }
@@ -348,7 +412,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .pagination-pages { max-width: 100%; }
   .footer { align-items: flex-start; flex-direction: column; gap: 4px; margin-top: 36px; }
   .dialog-frame { padding: 22px 17px; }
-  .dialog-header h2 { max-width: calc(100vw - 105px); font-size: 25px; }
+  .dialog-header h2 { max-width: 100%; font-size: 25px; }
   .detail-overview, .detail-grid, .form-grid, .form-grid-compact { grid-template-columns: 1fr; }
   .bulk-product-grid { grid-template-columns: 1fr; }
   .bulk-product-heading-row { flex-direction: column; gap: 8px; }
@@ -357,6 +421,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .draft-item-actions, .draft-confirm-actions { justify-content: stretch; }
   .draft-item-actions .button, .draft-confirm-actions .button { flex: 1; }
   .detail-item { grid-template-columns: 90px minmax(0, 1fr); }
+  .detail-tags { gap: 8px; }
+  .detail-tags-label { flex-basis: 70px; }
+  .detail-product-copy-actions { justify-content: stretch; }
+  .detail-product-copy-actions .button { flex: 1; }
+  .checklist-item { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+  .checklist-task-actions { grid-column: 2; justify-content: flex-start; }
   .field-wide { grid-column: auto; }
   .form-actions, .dialog-actions { justify-content: stretch; }
   .form-actions .button, .dialog-actions .button { flex: 1; }

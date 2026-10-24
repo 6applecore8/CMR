@@ -1,0 +1,9 @@
+{
+  "max_items": 10,
+  "max_items_hard_cap": 10,
+  "request_gap_seconds_min": 5,
+  "stop_on_challenge_or_rate_limit": true,
+  "output_dir": "leads/raw",
+  "fields": ["company", "title", "country_region", "public_summary", "profile_url"],
+  "notes": "Do not raise max_items_hard_cap. No captcha bypass, account pools, or stealth fingerprinting."
+}
