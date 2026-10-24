@@ -11,3 +11,26 @@ ai-assistant/crm-dashboard/logs/launcher.jsonl
 ai-assistant/crm-dashboard/logs/*.stdout.log
 ai-assistant/crm-dashboard/logs/*.stderr.log
 
+# Local-only CRM and outreach data. These paths may contain customer records,
+# contact details, notes, exports, backups, or raw lead material and must never
+# be included in the shared CMR repository.
+/ai-assistant/clients/
+/ai-assistant/leads/
+/ai-assistant/output/
+/ai-assistant/raw/
+/outputs/
+/ai-assistant/crm-dashboard/data/
+/ai-assistant/crm-dashboard/exports/
+/ai-assistant/crm-dashboard/backups/
+
+# Product knowledge base and pricing material (business data, never public)
+/llm-wiki-mvp/
+
+# Local agent runtime state and credentials
+/.workbuddy/
+/opencode.jsonc
+
+# Local scratch material and one-off helper scripts
+/generated-images/
+/新建文件夹/
+/read_excel.ps1
