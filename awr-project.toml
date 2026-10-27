@@ -1,0 +1,45 @@
+[project]
+name = "CMR Agent Workbench"
+external_key = "cmr-agent-workbench"
+authority_mode = "source_first"
+authorized_roots = []
+context_profile = "standard"
+
+[[sources]]
+domain = "ledger"
+role = "primary"
+path = "awr-work-ledger.yaml"
+adapter = "yaml-ledger-v1"
+
+[[sources]]
+domain = "plan"
+role = "supporting"
+path = "docs/superpowers/specs/2026-10-26-agent-workbench-plan.md"
+adapter = "markdown-heading-v1"
+
+[sources.options]
+key_prefix = "cmr-plan"
+
+[[sources]]
+domain = "rules"
+role = "primary"
+path = "AGENTS.md"
+adapter = "markdown-rules-v1"
+
+[sources.options]
+key_prefix = "cmr-root"
+severity = "hard"
+scope = "project"
+value = "*"
+
+[[sources]]
+domain = "rules"
+role = "primary"
+path = "ai-assistant/AGENTS.md"
+adapter = "markdown-rules-v1"
+
+[sources.options]
+key_prefix = "cmr-assistant"
+severity = "hard"
+scope = "path"
+value = "ai-assistant/**"

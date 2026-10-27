@@ -1,5 +1,13 @@
 # Trade Lead Assistant (CMR)
 
+## Agent workbench upgrade status
+
+The same-site sales/manager workbench is being developed in stages. The implementation plan is in `docs/superpowers/specs/2026-10-26-agent-workbench-plan.md`.
+
+Phase 1 adds the isolated `ai-assistant/agent_core` domain package with scoped read tools, pricing-version rules and policy authorization. Its 52 synthetic tests and the original 44 CRM tests pass. It is **not integrated into the existing HTTP server**: login, PostgreSQL persistence, role-based pages, real LLM calls and Wiki/RAG are still pending. The original CRM remains a local-only tool without authentication; do not expose it to untrusted users.
+
+Run the new domain tests from the repository root with `python -m unittest discover -s ai-assistant/agent_core/tests -v`.
+
 A local-first B2B lead-to-outreach system for a fragrance-oil export business: it turns trade-show lists and marketplace inquiries into scored customer profiles, generates outreach sequences, and tracks every follow-up — without a database, a cloud account, or a single npm/pip dependency.
 
 The repository ships the **working application** (`ai-assistant/crm-dashboard`) plus the **agent operating rules** that drive it (`ai-assistant/AGENTS.md`, `ai-assistant/README.md`).

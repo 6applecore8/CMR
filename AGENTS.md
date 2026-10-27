@@ -73,3 +73,11 @@ Jason 的**香精油 / 香水油外贸 AI 工作流**总仓库。多子系统共
 
 - **2026-08-07**：曾在 `ai-assistant/output/outreach/` 创建 `香皂测试引导完整版.md`，整篇复制 `wiki/concept/product_knowledge.md` 的香精知识 → **已删除**。根因：混淆"知识"与"基于知识的产出"。
 - **2026-08-06**：`soap_fabe_intro.md` 含产品知识，其知识已回织 `wiki/concept/fabe_company_intro.md` → **outreach 那份话术版已删除（2026-08-08）**，知识以 wiki 为准。
+
+## 9. AWR 项目台账
+
+- 本仓库启用 AWR；源码台账为 `awr-work-ledger.yaml`，来源配置为 `awr-project.toml`，操作说明见 `docs/AWR_WORKFLOW.md`。
+- 开工先在当前 CRM 仓库根目录执行 `awr status --json`，确认项目身份；读取所选任务完整上下文并取得自己的会话认领后再实施，不能复用其他会话的认领。
+- 完成任务前实际执行验证，将报告保存在 `docs/verification/`，登记报告哈希、源码内容哈希、命令、范围与时间，再通过 `awr work complete` 按验收项绑定证据。不得仅改 YAML 状态冒充已验证完成。
+- 交接前记录下一步、未闭环事项和当前上下文哈希，保存 AWR 检查点。`.awr/` 只用于本地状态，不提交到 Git。
+- AWR 不替代 CRM Dashboard 的 A2A 三文件交接门禁，不把计划中的数据库、身份认证、页面或模型接入标成已完成。

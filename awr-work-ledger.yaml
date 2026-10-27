@@ -1,0 +1,118 @@
+goals:
+  - id: CMR-AGENT-GOAL
+    title: 外贸 CRM 同站点双角色 Agent 工作台
+    status: active
+    priority: P0
+    summary: 依据用户已确认的分阶段计划推进；业务员查询和建档，管理层维护报价与政策，后端独立鉴权。不自动迁移真实客户或 Wiki，不把模型计划接入描述为已实现。
+    success_criteria:
+      - 员工仅可查询授权数据，当前报价有明确适用条件、有效版本和来源。
+      - 一个站点提供业务员与管理入口，登录、接口授权和审计可验证。
+      - 模型和 Wiki 后续独立验收，缺失数据、过期价格、异常与越权不产生虚假正常答案。
+
+milestones:
+  - id: CMR-M1
+    title: 阶段一：规则、契约与本地验证
+    status: completed
+    scope: [ai-assistant/agent_core]
+    acceptance: [领域规则验收通过，明确尚未集成的边界。]
+  - id: CMR-M2
+    title: 阶段二：数据与身份
+    status: planned
+    scope: [ai-assistant]
+    acceptance: [数据库和全部接口授权通过验收，不自动迁移真实数据。]
+  - id: CMR-M3
+    title: 阶段三：双角色界面
+    status: planned
+    scope: [ai-assistant/crm-dashboard]
+    acceptance: [同站点双角色完成真实浏览器联调。]
+  - id: CMR-M4
+    title: 阶段四：模型、Wiki 与效果评测
+    status: planned
+    scope: [ai-assistant]
+    acceptance: [真实模型和只读知识检索单独验证，记录效果与限制。]
+
+work_items:
+  - id: CMR-P1-RULES
+    title: 问数与报价规则底座及契约
+    status: completed
+    kind: implementation
+    priority: P0
+    required: true
+    goal: CMR-AGENT-GOAL
+    milestone: CMR-M1
+    depends_on: []
+    paths:
+      - ai-assistant/agent_core
+      - ai-assistant/crm-dashboard/tests/test_server.py
+      - docs/superpowers/specs/2026-10-26-agent-workbench-plan.md
+      - scripts/verify-agent-phase1.ps1
+    acceptance:
+      - "P1-C1: Scoped customer read tools and pricing/policy boundary tests pass."
+      - "P1-C2: Existing CRM regression, Python compilation and JavaScript syntax checks pass."
+      - "P1-C3: Delivery scope, immutable source snapshot and unchanged legacy entry points are recorded."
+    summary: 领域规则通过本地验收：52 项新增测试、44 项原回归及静态检查通过，报告和源码内容哈希已绑定；不代表登录、数据库、页面或模型已接入。
+    next_action: 阶段一已验收；下一阶段先盘点数据位置和部署条件，设计认证与迁移预演。
+    evidence: ["docs/verification/cmr-phase1-20261026T160130070Z.json"]
+    "verification": {"evidence_level":"locally_verified"}
+
+  - id: CMR-P2-IDENTITY-DATA
+    title: PostgreSQL、员工身份和全部接口权限
+    status: planned
+    kind: implementation
+    priority: P0
+    required: true
+    goal: CMR-AGENT-GOAL
+    milestone: CMR-M2
+    depends_on:
+      - CMR-P1-RULES
+    paths:
+      - ai-assistant
+      - docs/superpowers/specs/2026-10-26-agent-workbench-plan.md
+    acceptance:
+      - 确认客户数据位置与归属，完成备份和迁移预演；未获确认不切换主源。
+      - 实现登录、会话与角色授权，旧客户列表、详情、CSV 和编辑接口均受保护。
+      - 报价与政策事务保存，数据库参数化查询、受限账号、并发版本与审计通过测试。
+    summary: 待实施。现有 http.server 仍为无登录的本机工具，不能对外开放。
+    next_action: 先盘点部署和数据位置，设计迁移预演及认证契约，不自动导入真实数据。
+    evidence: []
+
+  - id: CMR-P3-ROLE-UI
+    title: 同站点业务员工作台与管理入口
+    status: planned
+    kind: implementation
+    priority: P1
+    required: true
+    goal: CMR-AGENT-GOAL
+    milestone: CMR-M3
+    depends_on:
+      - CMR-P2-IDENTITY-DATA
+    paths:
+      - ai-assistant/crm-dashboard
+    acceptance:
+      - 保留现有录入、解析与数据功能，按角色展示客户、问数、报价和管理入口。
+      - 报价卡展示版本、条件、来源、有效期和待复核状态，历史报价不能冒充当前价。
+      - 真实浏览器验证双角色、越权直连、加载/空态/失败和手机宽度，不以静态检查代替。
+    summary: 待实施，当前页面没有新增双角色或 Agent 入口。
+    next_action: 在阶段二接口稳定后接入导航、报价中心与管理设置，并进行浏览器联调。
+    evidence: []
+
+  - id: CMR-P4-MODEL-WIKI
+    title: 千问工具调用、只读 Wiki 与效果评测
+    status: planned
+    kind: implementation
+    priority: P1
+    required: true
+    goal: CMR-AGENT-GOAL
+    milestone: CMR-M4
+    depends_on:
+      - CMR-P3-ROLE-UI
+    paths:
+      - ai-assistant
+      - docs/superpowers/specs/2026-10-26-agent-workbench-plan.md
+    acceptance:
+      - 真实验证千问模型适配，密钥仅在后端，工具有参数与权限限制及调用预算。
+      - 明确 Wiki 真实路径与允许文档，只读检索并展示来源，不复制污染业务知识。
+      - 以脱敏数据评测工具选择、参数、事实支持、时效、耗时和成本，写操作经过确认。
+    summary: 待实施，预选 qwen3.8-max；当前默认模型为未配置，不进行付费调用。
+    next_action: 完成前序联调后确认 Wiki 路径和模型配置，再单独验证真实调用。
+    evidence: []

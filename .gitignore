@@ -34,3 +34,13 @@ ai-assistant/crm-dashboard/logs/*.stderr.log
 /generated-images/
 /新建文件夹/
 /read_excel.ps1
+
+# AWR local runtime state
+/.awr/
+.awr/state.db
+.awr/state.db-*
+.awr/artifacts/
+.awr/mutations/
+.awr/cache/
+.awr/clients/
+.awr/executions/

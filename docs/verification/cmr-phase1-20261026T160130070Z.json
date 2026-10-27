@@ -1,0 +1,189 @@
+{
+  "version": 1,
+  "work_item": "CMR-P1-RULES",
+  "source_sha": "fc62caa29bb4674c9e83d8917758b19eec6acffcc45eee517658d2eb2c9244ae",
+  "source_sha_kind": "sha256-content-manifest-not-git-commit",
+  "command": "pwsh -NoProfile -File scripts/verify-agent-phase1.ps1",
+  "scope": [
+    "ai-assistant/agent_core/__init__.py",
+    "ai-assistant/agent_core/contracts.py",
+    "ai-assistant/agent_core/customers.py",
+    "ai-assistant/agent_core/dispatcher.py",
+    "ai-assistant/agent_core/model_port.py",
+    "ai-assistant/agent_core/pricing.py",
+    "ai-assistant/agent_core/README.md",
+    "ai-assistant/agent_core/tests/test_domain.py",
+    "ai-assistant/agent_core/TOOL_CONTRACTS.md",
+    "ai-assistant/crm-dashboard/app.js",
+    "ai-assistant/crm-dashboard/index.html",
+    "ai-assistant/crm-dashboard/server.py",
+    "ai-assistant/crm-dashboard/styles.css",
+    "ai-assistant/crm-dashboard/tests/test_server.py",
+    "docs/superpowers/specs/2026-10-26-agent-workbench-plan.md",
+    "scripts/verify-agent-phase1.ps1"
+  ],
+  "verified_at": 1793030490108,
+  "checks": [
+    {
+      "name": "domain_tests",
+      "passed": true,
+      "details": "----------------------------------------------------------------------\r\nRan 52 tests in 0.025s\r\n\r\nOK",
+      "command": "python -m unittest discover -s ai-assistant/agent_core/tests -q",
+      "exit_code": 0,
+      "criteria": [
+        "P1-C1: Scoped customer read tools and pricing/policy boundary tests pass."
+      ]
+    },
+    {
+      "name": "legacy_tests",
+      "passed": true,
+      "details": "----------------------------------------------------------------------\r\nRan 44 tests in 2.804s\r\n\r\nOK",
+      "command": "python -m unittest discover -s ai-assistant/crm-dashboard/tests -q",
+      "exit_code": 0,
+      "criteria": [
+        "P1-C2: Existing CRM regression, Python compilation and JavaScript syntax checks pass."
+      ]
+    },
+    {
+      "name": "python_compile",
+      "passed": true,
+      "details": "Process exited with code 0",
+      "command": "python -m compileall -q ai-assistant/agent_core",
+      "exit_code": 0,
+      "criteria": [
+        "P1-C2: Existing CRM regression, Python compilation and JavaScript syntax checks pass."
+      ]
+    },
+    {
+      "name": "javascript_syntax",
+      "passed": true,
+      "details": "Process exited with code 0",
+      "command": "node --check ai-assistant/crm-dashboard/app.js",
+      "exit_code": 0,
+      "criteria": [
+        "P1-C2: Existing CRM regression, Python compilation and JavaScript syntax checks pass."
+      ]
+    },
+    {
+      "name": "git_diff_check",
+      "passed": true,
+      "details": "warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\r\nwarning: in the working copy of 'ai-assistant/crm-dashboard/logs/a2a-task-updates.jsonl', LF will be replaced by CRLF the next time Git touches it",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "criteria": [
+        "P1-C2: Existing CRM regression, Python compilation and JavaScript syntax checks pass."
+      ]
+    },
+    {
+      "name": "legacy_entrypoints_unchanged",
+      "passed": true,
+      "details": "Process exited with code 0",
+      "command": "git diff --exit-code HEAD -- ai-assistant/crm-dashboard/server.py ai-assistant/crm-dashboard/app.js ai-assistant/crm-dashboard/index.html ai-assistant/crm-dashboard/styles.css ai-assistant/crm-dashboard/tests/test_server.py",
+      "exit_code": 0,
+      "criteria": [
+        "P1-C3: Delivery scope, immutable source snapshot and unchanged legacy entry points are recorded."
+      ]
+    },
+    {
+      "name": "scope_and_source_snapshot",
+      "passed": true,
+      "details": "Content-hash snapshot unchanged during checks. No new HTTP service or UI was started; authentication, PostgreSQL, model calls, Wiki/RAG and production migration are outside this completion.",
+      "criteria": [
+        "P1-C3: Delivery scope, immutable source snapshot and unchanged legacy entry points are recorded."
+      ]
+    }
+  ],
+  "source_files": [
+    {
+      "path": "ai-assistant/agent_core/__init__.py",
+      "sha256": "f80c76707e01ccb0deb17a66d4cd852a8cfe779fa3ccd238cabb3d091d63da24",
+      "bytes": 96
+    },
+    {
+      "path": "ai-assistant/agent_core/contracts.py",
+      "sha256": "acef049d72dcb813424e564a8a56cfeee0ccb7347a13d6ec37a0fd69dff3dff3",
+      "bytes": 2631
+    },
+    {
+      "path": "ai-assistant/agent_core/customers.py",
+      "sha256": "639094bae6fe4ccf05d9373fb20a3529df3b7a303921db49e078ec41e4731cad",
+      "bytes": 6157
+    },
+    {
+      "path": "ai-assistant/agent_core/dispatcher.py",
+      "sha256": "2cf3274b5219b91715e228217d4dc41ebc4802a4058537c03761cfd3a49c0db6",
+      "bytes": 1063
+    },
+    {
+      "path": "ai-assistant/agent_core/model_port.py",
+      "sha256": "f2d8b4d30ac2928ce49b1fe6f26df0659963799ea1e3c19a14ee019591ad272e",
+      "bytes": 769
+    },
+    {
+      "path": "ai-assistant/agent_core/pricing.py",
+      "sha256": "811d8d2c781e6ad61bccf7ef5022747ab7faa72519f847ef5bf6a9430f454dab",
+      "bytes": 13023
+    },
+    {
+      "path": "ai-assistant/agent_core/README.md",
+      "sha256": "924bda5b89e98817f5714d3944dc0d0141dea8c895a90d518c27ae27a27cf52c",
+      "bytes": 1969
+    },
+    {
+      "path": "ai-assistant/agent_core/tests/test_domain.py",
+      "sha256": "217d24d7a23273543611743ae064df480171cde35b2ea1a404ab5e981ab640ea",
+      "bytes": 17592
+    },
+    {
+      "path": "ai-assistant/agent_core/TOOL_CONTRACTS.md",
+      "sha256": "dd4e982e68382fed38e501d33c2cb8911e8b8aa4d6a2dc3c8d435b7a760be958",
+      "bytes": 3257
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/app.js",
+      "sha256": "3d67eaf4c272a200dbf50f77c5c16356c9258cda060c36eba5c3baa449f830f2",
+      "bytes": 75261
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/index.html",
+      "sha256": "eacfe7f555f21347e99d19c0646989e75814407da196d5ba028b62c25ffacc53",
+      "bytes": 30815
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/server.py",
+      "sha256": "664e0d412e48f1bc92a230fba54121ef0cc95d52bbbe0e102c31955bc0ce5680",
+      "bytes": 129633
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/styles.css",
+      "sha256": "6e76033ce3362de1e0da570b20facd2f89c5d9f4c54f3d69c79bf6c58e1528e9",
+      "bytes": 35307
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/tests/test_server.py",
+      "sha256": "69e65d86bc0f4d940746c727e871b8fa1c2be9d6ad60d12d6bf76854be274b95",
+      "bytes": 81341
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-26-agent-workbench-plan.md",
+      "sha256": "7be82cebe7cf0d469da713f4161ac2b93368c13c2fbc2ce7f7d1dd5aff05a5fa",
+      "bytes": 7801
+    },
+    {
+      "path": "scripts/verify-agent-phase1.ps1",
+      "sha256": "a051bd2f6d0ad0d49a24419fb23e33bdb7a5c4f02f9100df1093a8dc028bb0b4",
+      "bytes": 5404
+    }
+  ],
+  "git_head": "478c27cc22c46d84096fe09cd03074f3f9d78e18",
+  "git_working_tree_dirty": true,
+  "domain_tests": 52,
+  "legacy_tests": 44,
+  "limitations": [
+    "No new HTTP/UI integration",
+    "No authentication/database integration",
+    "No real LLM or Wiki/RAG",
+    "No production data migration",
+    "No new browser acceptance"
+  ]
+}

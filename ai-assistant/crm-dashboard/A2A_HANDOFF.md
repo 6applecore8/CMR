@@ -1,7 +1,18 @@
 # CRM Dashboard · A2A 交接状态
 
-更新时间：2026-09-30
+更新时间：2026-10-26
 状态：邮件客户新增/编辑支持粘贴整段联系信息自动识别姓名、电话、地址；这三个字段在表单、详情和卡片前置分组；每日清单、Git 数据隔离、姓名优先展示、客户完整编辑、自定义标签、长产品详情折叠/完整列复制、草稿箱和 Alibaba 50 条产品拆分均已实现；可按交接门禁接手
+
+## 2026-10-26 Agent 工作台阶段一
+
+- 开发位置：独立克隆 `D:\Code\CMR`，分支 `codex/crm-agent-workbench`，基线 `478c27c`；未修改 TidyQuestion，未提交或推送 GitHub。
+- 计划：`docs/superpowers/specs/2026-10-26-agent-workbench-plan.md`，一个网站的 sales/manager 双入口，后端独立执行权限。
+- 新增 `ai-assistant/agent_core/`：可信身份契约、受控客户只读工具、报价有效性和版本选择、管理政策变更快照、模型关闭状态、工具契约及 52 项合成测试。
+- 原 CRM `server.py`、`app.js`、`index.html`、`styles.css` 和客户数据不变。该包尚未导入旧 HTTP 入口，不能视作原服务已增加鉴权或管理功能。
+- 验证：领域测试 52/52、原回归 44/44、Python 编译、原 app.js 语法、差异检查通过；无客户数据写入、无模型调用、无浏览器验收。
+- 尚未完成：登录与真实会话、PostgreSQL 仓储与迁移、旧 API 全面鉴权、同站点双角色界面、报价审批/审计持久化、真实 Qwen 与 Wiki/RAG。
+- 下一步：按阶段二落实数据库和认证，先确认生产数据位置、归属映射与迁移预演，不自动切换真实数据主源。
+- 回滚：本阶段仅有独立包和文档增量，旧服务未切换；保留既有业务文件，按用户要求撤销新分支的增量，不删除或移动客户主数据。
 
 ## 接手门禁（A2A_HANDOFF_INDEX）
 
@@ -128,6 +139,15 @@
 - 每日清单错误提示使用 `CRM-CHECKLIST-001`；该码代表浏览器 `localStorage` 读取或保存失败，不代表客户 API 或客户档案写入失败。审核建议已补登记。
 
 ## 回滚指引（仅记录步骤，不在此执行）
+
+### AWR 台账接入（2026-10-27）
+
+- CRM 开发副本 `D:\Code\CMR` 已独立启用 AWR，来源配置见根目录 `awr-project.toml`，台账见 `awr-work-ledger.yaml`。
+- `CMR-P1-RULES` 已通过 AWR 本地验证完成，证据为 `docs/verification/cmr-phase1-20261026T160130070Z.json`，覆盖 52 项领域测试、44 项原回归及静态检查。
+- 数据身份、双角色页面、模型与 Wiki 三个后续阶段仍为待办；无真实客户数据迁移、模型调用或远端推送。
+- AWR 使用与证据检查见 `docs/AWR_WORKFLOW.md`。本地 `.awr/` 不入库，原 A2A 交接门禁继续有效。
+
+### 原服务恢复步骤
 
 1. 停止正在运行的本地 CRM 服务。
 2. 备份当前 `ai-assistant/crm-dashboard/`、`ai-assistant/clients/`、`ai-assistant/leads/pipeline.md` 与 `logs/`。

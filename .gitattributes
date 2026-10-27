@@ -1,0 +1,2 @@
+# Verification reports are hash-bound evidence; preserve their exact bytes.
+docs/verification/*.json -text whitespace=cr-at-eol
