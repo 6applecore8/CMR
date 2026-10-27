@@ -2,6 +2,10 @@
 
 ## Agent workbench upgrade status
 
+Current CRM business integration and synthetic demo status: see `docs/CMR_BUSINESS_INTEGRATION.md`. The existing dashboard is not authenticated; do not expose it to untrusted users.
+
+Model provider update (2026-10-27): DeepSeek replaces the earlier Qwen selection. The environment-only `DeepSeekPlanner` and read-only `QueryService` are implemented for backend composition, with offline protocol and permission tests. Live API verification and Dashboard/authentication integration remain pending. See `docs/DEEPSEEK_SETUP.md`; never put an API key in source or frontend code.
+
 The same-site sales/manager workbench is being developed in stages. The implementation plan is in `docs/superpowers/specs/2026-10-26-agent-workbench-plan.md`.
 
 Phase 1 adds the isolated `ai-assistant/agent_core` domain package with scoped read tools, pricing-version rules and policy authorization. Its 52 synthetic tests and the original 44 CRM tests pass. It is **not integrated into the existing HTTP server**: login, PostgreSQL persistence, role-based pages, real LLM calls and Wiki/RAG are still pending. The original CRM remains a local-only tool without authentication; do not expose it to untrusted users.

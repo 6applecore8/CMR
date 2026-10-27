@@ -57,7 +57,7 @@ work_items:
 
   - id: CMR-P2-IDENTITY-DATA
     title: PostgreSQL、员工身份和全部接口权限
-    status: planned
+    status: in_progress
     kind: implementation
     priority: P0
     required: true
@@ -73,7 +73,7 @@ work_items:
       - 实现登录、会话与角色授权，旧客户列表、详情、CSV 和编辑接口均受保护。
       - 报价与政策事务保存，数据库参数化查询、受限账号、并发版本与审计通过测试。
     summary: 待实施。现有 http.server 仍为无登录的本机工具，不能对外开放。
-    next_action: 先盘点部署和数据位置，设计迁移预演及认证契约，不自动导入真实数据。
+    next_action: "Start or configure PostgreSQL, validate schema on an isolated database, then implement persistence and protect all HTTP endpoints before dashboard integration."
     evidence: []
 
   - id: CMR-P3-ROLE-UI
@@ -97,7 +97,7 @@ work_items:
     evidence: []
 
   - id: CMR-P4-MODEL-WIKI
-    title: 千问工具调用、只读 Wiki 与效果评测
+    title: DeepSeek 工具调用、只读 Wiki 与效果评测
     status: planned
     kind: implementation
     priority: P1
@@ -110,9 +110,47 @@ work_items:
       - ai-assistant
       - docs/superpowers/specs/2026-10-26-agent-workbench-plan.md
     acceptance:
-      - 真实验证千问模型适配，密钥仅在后端，工具有参数与权限限制及调用预算。
+      - 真实验证 DeepSeek 模型适配，密钥仅在后端，工具有参数与权限限制及调用预算。
       - 明确 Wiki 真实路径与允许文档，只读检索并展示来源，不复制污染业务知识。
       - 以脱敏数据评测工具选择、参数、事实支持、时效、耗时和成本，写操作经过确认。
-    summary: 待实施，预选 qwen3.8-max；当前默认模型为未配置，不进行付费调用。
+    summary: 用户于 2026-10-27 改选 DeepSeek；独立适配另行验收，完整在线联调与 Wiki 集成仍待实施。
     next_action: 完成前序联调后确认 Wiki 路径和模型配置，再单独验证真实调用。
     evidence: []
+
+  - id: CMR-DEEPSEEK-ADAPTER
+    title: DeepSeek 独立适配与安全配置
+    status: completed
+    kind: implementation
+    priority: P0
+    required: true
+    goal: CMR-AGENT-GOAL
+    milestone: CMR-M4
+    depends_on: [CMR-P1-RULES]
+    paths: [ai-assistant/agent_core, docs/DEEPSEEK_SETUP.md, .gitignore, README.md]
+    acceptance:
+      - "DS-C1: Offline provider and read-only tool routing tests pass, including invalid responses, timeouts, authentication and authorization boundaries."
+      - "DS-C2: Credentials remain environment-only and logs are safe; full regression and syntax checks pass with a hash-bound report."
+      - "DS-C3: Provider setup, immutable source snapshot and unchanged legacy entry points are recorded without claiming live integration."
+    summary: 独立 DeepSeek 适配及只读问数组合通过本地验收：77 项领域/模型测试和 44 项原回归；未复用泄露密钥，未验证真实 API，未接入网页。
+    next_action: 更换密钥并通过环境变量注入后显式运行在线冒烟；身份、数据库、网页和 Wiki 仍按原阶段验收。
+    evidence: ["docs/verification/cmr-deepseek-20261027T131354551Z.json"]
+    "verification": {"evidence_level":"locally_verified"}
+
+  - id: CMR-DEEPSEEK-LOCAL-SECRET
+    title: DeepSeek Windows 本地加密密钥
+    status: completed
+    kind: implementation
+    priority: P0
+    required: true
+    goal: CMR-AGENT-GOAL
+    milestone: CMR-M4
+    depends_on: [CMR-DEEPSEEK-ADAPTER]
+    paths: [scripts/deepseek-secret.ps1, docs/DEEPSEEK_SETUP.md, .gitignore]
+    acceptance:
+      - Windows DPAPI 本地保存与读取使用合成数据完成验证，不泄露密钥。
+      - 加密文件在 Git 中被忽略，旧文件不会被静默覆盖。
+      - 使用说明明确暴露密钥应撤销、当前账户限制和未完成在线验证。
+    summary: Windows DPAPI 存取、防覆盖和 Git 忽略已使用合成输入本地验证；尚未进行在线联调。
+    next_action: 按本机配置说明完成后续设置；线上部署与联调另行验收。
+    evidence: ["docs/verification/cmr-secret-20261027T141715854Z.json"]
+    "verification": {"evidence_level":"locally_verified"}

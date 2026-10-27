@@ -59,6 +59,11 @@ quantity 是正的十进制字符串，例如 "10.5"，不用浮点数。价格�
 | POLICY_VERSION_CONFLICT | 409 | 重新读取政策并确认变更 |
 | SOURCE_INCONSISTENT | 503 | 交管理层检查，不能显示正常零条 |
 | MODEL_NOT_CONFIGURED | 503 | 明确说明未接入模型，不生成假回答 |
+| MODEL_CONFIG_INVALID / MODEL_AUTH_FAILED / MODEL_BALANCE_INSUFFICIENT | 503 | 后端修正配置或余额，不回显密钥 |
+| MODEL_RATE_LIMITED | 503 | 显示限流，不自动重复计费调用 |
+| MODEL_TIMEOUT / MODEL_NETWORK_ERROR | 504 | 明确调用失败，不返回虚假统计 |
+| MODEL_INVALID_RESPONSE / MODEL_OUTPUT_TRUNCATED / MODEL_UNAVAILABLE | 502 | 拒绝异常上游输出，不执行工具 |
+| MODEL_NEEDS_CLARIFICATION | 422 | 请求补充条件，不采用模型自由文本作业务事实 |
 
 OSError 等未知仓储异常必须由未来全局处理层记录安全错误码并返回 5xx；不得把异常原文、客户原文或堆栈放进响应。
 

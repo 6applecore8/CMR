@@ -30,6 +30,11 @@ ai-assistant/crm-dashboard/logs/*.stderr.log
 /.workbuddy/
 /opencode.jsonc
 
+# Local secrets; examples contain variable names only.
+.env
+.env.*
+!.env.example
+
 # Local scratch material and one-off helper scripts
 /generated-images/
 /新建文件夹/
@@ -44,3 +49,6 @@ ai-assistant/crm-dashboard/logs/*.stderr.log
 .awr/cache/
 .awr/clients/
 .awr/executions/
+
+# Windows DPAPI encrypted local credentials (never commit)
+/.secrets/

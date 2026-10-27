@@ -1,0 +1,231 @@
+{
+  "version": 1,
+  "work_item": "CMR-DEEPSEEK-ADAPTER",
+  "source_sha": "56018f4a00bf38de9615159a4ec541211f1dd4e98e128d5782110f9d3a16e42f",
+  "source_sha_kind": "sha256-content-manifest-not-git-commit",
+  "command": "pwsh -NoProfile -File scripts/verify-deepseek.ps1",
+  "scope": [
+    ".gitignore",
+    "ai-assistant/agent_core/__init__.py",
+    "ai-assistant/agent_core/contracts.py",
+    "ai-assistant/agent_core/customers.py",
+    "ai-assistant/agent_core/deepseek_smoke.py",
+    "ai-assistant/agent_core/deepseek.py",
+    "ai-assistant/agent_core/dispatcher.py",
+    "ai-assistant/agent_core/model_port.py",
+    "ai-assistant/agent_core/pricing.py",
+    "ai-assistant/agent_core/query_service.py",
+    "ai-assistant/agent_core/README.md",
+    "ai-assistant/agent_core/tests/test_deepseek.py",
+    "ai-assistant/agent_core/tests/test_domain.py",
+    "ai-assistant/agent_core/TOOL_CONTRACTS.md",
+    "ai-assistant/crm-dashboard/app.js",
+    "ai-assistant/crm-dashboard/index.html",
+    "ai-assistant/crm-dashboard/server.py",
+    "ai-assistant/crm-dashboard/styles.css",
+    "ai-assistant/crm-dashboard/tests/test_server.py",
+    "docs/DEEPSEEK_SETUP.md",
+    "docs/superpowers/specs/2026-10-26-agent-workbench-plan.md",
+    "README.md",
+    "scripts/verify-deepseek.ps1"
+  ],
+  "verified_at": 1793106834575,
+  "checks": [
+    {
+      "name": "domain_tests",
+      "passed": true,
+      "details": "module=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_NEEDS_CLARIFICATION traceId=synthetic-trace costMs=0\r\nmodule=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\n2026-10-27 21:13:50,814 INFO module=model action=plan phase=start provider=deepseek traceId=b21839e72de94d9baf39b1d8be5d53b4\r\n2026-10-27 21:13:50,815 INFO module=model action=plan phase=end code=OK traceId=b21839e72de94d9baf39b1d8be5d53b4 costMs=0\r\n2026-10-27 21:13:50,868 INFO module=model action=plan phase=start provider=deepseek traceId=synthetic-trace\r\n2026-10-27 21:13:50,868 WARNING module=model action=plan phase=end code=MODEL_TIMEOUT traceId=synthetic-trace costMs=0\r\n2026-10-27 21:13:50,868 INFO module=model action=plan phase=start provider=deepseek traceId=synthetic-trace\r\n2026-10-27 21:13:50,869 WARNING module=model action=plan phase=end code=MODEL_TIMEOUT traceId=synthetic-trace costMs=0\r\n2026-10-27 21:13:50,869 INFO module=model action=plan phase=start provider=deepseek traceId=synthetic-trace\r\n2026-10-27 21:13:50,869 WARNING module=model action=plan phase=end code=MODEL_NETWORK_ERROR traceId=synthetic-trace costMs=0\r\n2026-10-27 21:13:50,869 INFO module=model action=plan phase=start provider=deepseek traceId=synthetic-trace\r\n2026-10-27 21:13:50,869 WARNING module=model action=plan phase=end code=MODEL_NETWORK_ERROR traceId=synthetic-trace costMs=0\r\n2026-10-27 21:13:50,926 INFO module=model action=plan phase=start provider=deepseek traceId=synthetic-trace\r\n2026-10-27 21:13:50,928 WARNING module=model action=plan phase=end code=MODEL_OUTPUT_TRUNCATED traceId=synthetic-trace costMs=0\r\n2026-10-27 21:13:51,040 INFO module=model action=plan phase=start provider=deepseek traceId=synthetic-trace\r\n2026-10-27 21:13:51,043 WARNING module=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\n2026-10-27 21:13:51,043 INFO module=model action=plan phase=start provider=deepseek traceId=synthetic-trace\r\n2026-10-27 21:13:51,045 WARNING module=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\n2026-10-27 21:13:51,049 INFO module=model action=plan phase=start provider=deepseek traceId=synthetic-trace\r\n2026-10-27 21:13:51,049 WARNING module=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\n2026-10-27 21:13:51,049 INFO module=model action=plan phase=start provider=deepseek traceId=synthetic-trace\r\n2026-10-27 21:13:51,049 WARNING module=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\n2026-10-27 21:13:51,051 INFO module=model action=plan phase=start provider=deepseek traceId=synthetic-trace\r\n2026-10-27 21:13:51,051 WARNING module=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\n2026-10-27 21:13:51,102 INFO module=model action=plan phase=start provider=deepseek traceId=synthetic-trace\r\n2026-10-27 21:13:51,102 WARNING module=model action=plan phase=end code=MODEL_INVALID_RESPONSE traceId=synthetic-trace costMs=0\r\n----------------------------------------------------------------------\r\nRan 77 tests in 1.569s\r\n\r\nOK",
+      "command": "python -m unittest discover -s ai-assistant/agent_core/tests -q",
+      "exit_code": 0,
+      "criteria": [
+        "DS-C1: Offline provider and read-only tool routing tests pass, including invalid responses, timeouts, authentication and authorization boundaries."
+      ]
+    },
+    {
+      "name": "legacy_tests",
+      "passed": true,
+      "details": "----------------------------------------------------------------------\r\nRan 44 tests in 2.210s\r\n\r\nOK",
+      "command": "python -m unittest discover -s ai-assistant/crm-dashboard/tests -q",
+      "exit_code": 0,
+      "criteria": [
+        "DS-C2: Credentials remain environment-only and logs are safe; full regression and syntax checks pass with a hash-bound report."
+      ]
+    },
+    {
+      "name": "python_compile",
+      "passed": true,
+      "details": "Process exited with code 0",
+      "command": "python -m compileall -q ai-assistant/agent_core",
+      "exit_code": 0,
+      "criteria": [
+        "DS-C2: Credentials remain environment-only and logs are safe; full regression and syntax checks pass with a hash-bound report."
+      ]
+    },
+    {
+      "name": "javascript_syntax",
+      "passed": true,
+      "details": "Process exited with code 0",
+      "command": "node --check ai-assistant/crm-dashboard/app.js",
+      "exit_code": 0,
+      "criteria": [
+        "DS-C2: Credentials remain environment-only and logs are safe; full regression and syntax checks pass with a hash-bound report."
+      ]
+    },
+    {
+      "name": "git_diff_check",
+      "passed": true,
+      "details": "warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\r\nwarning: in the working copy of 'ai-assistant/agent_core/README.md', LF will be replaced by CRLF the next time Git touches it\r\nwarning: in the working copy of 'ai-assistant/agent_core/TOOL_CONTRACTS.md', LF will be replaced by CRLF the next time Git touches it\r\nwarning: in the working copy of 'ai-assistant/agent_core/model_port.py', LF will be replaced by CRLF the next time Git touches it\r\nwarning: in the working copy of 'awr-work-ledger.yaml', LF will be replaced by CRLF the next time Git touches it",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "criteria": [
+        "DS-C2: Credentials remain environment-only and logs are safe; full regression and syntax checks pass with a hash-bound report."
+      ]
+    },
+    {
+      "name": "legacy_entrypoints_unchanged",
+      "passed": true,
+      "details": "Process exited with code 0",
+      "command": "git diff --exit-code HEAD -- ai-assistant/crm-dashboard/server.py ai-assistant/crm-dashboard/app.js ai-assistant/crm-dashboard/index.html ai-assistant/crm-dashboard/styles.css ai-assistant/crm-dashboard/tests/test_server.py",
+      "exit_code": 0,
+      "criteria": [
+        "DS-C3: Provider setup, immutable source snapshot and unchanged legacy entry points are recorded without claiming live integration."
+      ]
+    },
+    {
+      "name": "scope_and_source_snapshot",
+      "passed": true,
+      "details": "Content-hash snapshot unchanged during checks. No new HTTP service or UI was started; authentication, PostgreSQL, model calls, Wiki/RAG and production migration are outside this completion.",
+      "criteria": [
+        "DS-C3: Provider setup, immutable source snapshot and unchanged legacy entry points are recorded without claiming live integration."
+      ]
+    }
+  ],
+  "source_files": [
+    {
+      "path": ".gitignore",
+      "sha256": "9fd60b620662f582663d43e712b7aa923ae5ec008a511d69c70fd5ba05cb7f30",
+      "bytes": 1291
+    },
+    {
+      "path": "ai-assistant/agent_core/__init__.py",
+      "sha256": "f80c76707e01ccb0deb17a66d4cd852a8cfe779fa3ccd238cabb3d091d63da24",
+      "bytes": 96
+    },
+    {
+      "path": "ai-assistant/agent_core/contracts.py",
+      "sha256": "acef049d72dcb813424e564a8a56cfeee0ccb7347a13d6ec37a0fd69dff3dff3",
+      "bytes": 2631
+    },
+    {
+      "path": "ai-assistant/agent_core/customers.py",
+      "sha256": "639094bae6fe4ccf05d9373fb20a3529df3b7a303921db49e078ec41e4731cad",
+      "bytes": 6157
+    },
+    {
+      "path": "ai-assistant/agent_core/deepseek_smoke.py",
+      "sha256": "0d11c62d8f77432d43e71b0c41307ed304d9f714eaf89edff12573a540047ebc",
+      "bytes": 935
+    },
+    {
+      "path": "ai-assistant/agent_core/deepseek.py",
+      "sha256": "e1de006f4c429af054074d1d6afde68976f57e034ab5f165686d3d0dd029ccec",
+      "bytes": 12999
+    },
+    {
+      "path": "ai-assistant/agent_core/dispatcher.py",
+      "sha256": "2cf3274b5219b91715e228217d4dc41ebc4802a4058537c03761cfd3a49c0db6",
+      "bytes": 1063
+    },
+    {
+      "path": "ai-assistant/agent_core/model_port.py",
+      "sha256": "bcc294845c6dea338135d91a6a11ca3a33d61129d36fa4779d489790fc42be17",
+      "bytes": 833
+    },
+    {
+      "path": "ai-assistant/agent_core/pricing.py",
+      "sha256": "811d8d2c781e6ad61bccf7ef5022747ab7faa72519f847ef5bf6a9430f454dab",
+      "bytes": 13023
+    },
+    {
+      "path": "ai-assistant/agent_core/query_service.py",
+      "sha256": "ea3328571c80afd3eeb9c9ee098bf4a835e7af5fc8d0801e4d22edf9e8bbe881",
+      "bytes": 1006
+    },
+    {
+      "path": "ai-assistant/agent_core/README.md",
+      "sha256": "e2ad9db3d51e2af00ebfae6f724f3f349d6560e929d0dd8b587c02cfd2587ee5",
+      "bytes": 2376
+    },
+    {
+      "path": "ai-assistant/agent_core/tests/test_deepseek.py",
+      "sha256": "ae9c380382a4180fb8d8ea622308d2c0d5e950a5f0a461eb9ebfe4d9d547f8d0",
+      "bytes": 13812
+    },
+    {
+      "path": "ai-assistant/agent_core/tests/test_domain.py",
+      "sha256": "217d24d7a23273543611743ae064df480171cde35b2ea1a404ab5e981ab640ea",
+      "bytes": 17592
+    },
+    {
+      "path": "ai-assistant/agent_core/TOOL_CONTRACTS.md",
+      "sha256": "410b3e6fcd46238023e14c538983b949f048614b08d6750d724535d77fb33c96",
+      "bytes": 3775
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/app.js",
+      "sha256": "3d67eaf4c272a200dbf50f77c5c16356c9258cda060c36eba5c3baa449f830f2",
+      "bytes": 75261
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/index.html",
+      "sha256": "eacfe7f555f21347e99d19c0646989e75814407da196d5ba028b62c25ffacc53",
+      "bytes": 30815
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/server.py",
+      "sha256": "664e0d412e48f1bc92a230fba54121ef0cc95d52bbbe0e102c31955bc0ce5680",
+      "bytes": 129633
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/styles.css",
+      "sha256": "6e76033ce3362de1e0da570b20facd2f89c5d9f4c54f3d69c79bf6c58e1528e9",
+      "bytes": 35307
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/tests/test_server.py",
+      "sha256": "69e65d86bc0f4d940746c727e871b8fa1c2be9d6ad60d12d6bf76854be274b95",
+      "bytes": 81341
+    },
+    {
+      "path": "docs/DEEPSEEK_SETUP.md",
+      "sha256": "844b8737f110be678e8714c07ec3fa6a8f6cc66e97a9ddee32a74be62cfeec0c",
+      "bytes": 4622
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-26-agent-workbench-plan.md",
+      "sha256": "7be82cebe7cf0d469da713f4161ac2b93368c13c2fbc2ce7f7d1dd5aff05a5fa",
+      "bytes": 7801
+    },
+    {
+      "path": "README.md",
+      "sha256": "5751b6dcc87e0d31a16bf66c3ccb42470a81f3897f2b3280f351d5216ecc4276",
+      "bytes": 9482
+    },
+    {
+      "path": "scripts/verify-deepseek.ps1",
+      "sha256": "72e6acd9713099e1ab1c6f0e8acb49d31baa6c2837e99a96fa62dc825e8f6838",
+      "bytes": 5631
+    }
+  ],
+  "git_head": "9887498ae8f3c61e1d98735a4dd84f70ca0125da",
+  "git_working_tree_dirty": true,
+  "domain_tests": 77,
+  "legacy_tests": 44,
+  "limitations": [
+    "No new HTTP/UI integration",
+    "No authentication/database integration",
+    "No real LLM or Wiki/RAG",
+    "No production data migration",
+    "No new browser acceptance"
+  ]
+}
