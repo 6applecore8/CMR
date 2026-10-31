@@ -1,0 +1,31 @@
+{
+  "verified_at": "2026-10-30T17:53:23.235547+08:00",
+  "work": "CMR-P2-IDENTITY-DATA",
+  "git_head": "9243ae6",
+  "dirty_worktree": true,
+  "source_sha256": "8713395505e640d8a78385cb833de37c26db55f8e8eb2a5ee55338037fb1d965",
+  "source_files_sha256": {
+    "ai-assistant/agent_core/tests/test_postgres_schema_integration.py": "9d89fc3e1f09fb3cb3b7558b7d190da90a78d74c34d27549e1f7e38a33a5f152",
+    "ai-assistant/agent_core/migrations/V001__business_foundation.sql": "7073313c15258d43143accd775dfd4340566c7078acb42ad2e7dc2d296b06043"
+  },
+  "checks": [
+    {
+      "command": "PYTHONPATH=ai-assistant python -m unittest discover -s ai-assistant/agent_core/tests -q",
+      "result": "105 passed, 1 skipped",
+      "scope": "synthetic offline tests; Python PostgreSQL integration skipped because test DSN was not configured"
+    },
+    {
+      "command": "docker exec -i cmr-p2-test-20261030 psql -U postgres -d cmr_test_isolated -v ON_ERROR_STOP=1",
+      "result": "passed; V001 applied in transaction; cross-tenant FK and role checks passed; rollback_verified",
+      "scope": "isolated network-none PostgreSQL 15; synthetic SQL fixtures; transactional schema"
+    }
+  ],
+  "limitations": [
+    "No staff repository integration or restricted application account validation",
+    "No HTTP authentication integration",
+    "No customer migration, backup or ownership confirmation",
+    "No full phase-two completion"
+  ],
+  "test_container": "cmr-p2-test-20261030, stopped and retained",
+  "customer_data_changed": false
+}

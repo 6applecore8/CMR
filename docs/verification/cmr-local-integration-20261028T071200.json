@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "verification_kind": "local_commit_integration",
+  "verified_at": "2026-10-28T15:11:56.115+08:00",
+  "git_head": "9243ae6c8c58237d65f381dada4f6b62ad609e5b",
+  "base_head": "478c27cc22c46d84096fe09cd03074f3f9d78e18",
+  "accepted_commits": [
+    "9887498",
+    "9243ae6"
+  ],
+  "branch": "main",
+  "source_sha": "af9983e20f490fff860a187a26a0e025a63b21e0de986c65ff3d7b0ce5cb785e",
+  "source_sha_kind": "sha256-content-manifest-not-git-commit",
+  "source_files": [
+    {
+      "path": "ai-assistant/agent_core/__init__.py",
+      "sha256": "9adbb6f576352df7fbb006bf6cb5334263228fa51e248ddc23bff6e9e313c230"
+    },
+    {
+      "path": "ai-assistant/agent_core/auth.py",
+      "sha256": "5b68d254aab06f7d36e09824eb6617adf223f5e04f9acbf7c7434b84e59fd9af"
+    },
+    {
+      "path": "ai-assistant/agent_core/contracts.py",
+      "sha256": "ef464ac8af835f71670eb930c6e20aac15eb69c062c4142f5c055bf6a3df3d63"
+    },
+    {
+      "path": "ai-assistant/agent_core/credentials.py",
+      "sha256": "cb355d5bd5fe93ef7c4e37dad59440b227724bd8056bbbe6d2cae8d1ca3f902f"
+    },
+    {
+      "path": "ai-assistant/agent_core/customers.py",
+      "sha256": "8cbf64d258cae525e517285e0b9030bce6d009b0d97df01c1983eb73b6b607f9"
+    },
+    {
+      "path": "ai-assistant/agent_core/deepseek_smoke.py",
+      "sha256": "dc169ef67854c37b5f14ac37174fc53501a53b7f396d11cd4bc95d35a803a767"
+    },
+    {
+      "path": "ai-assistant/agent_core/deepseek.py",
+      "sha256": "4a423ec83598885b1c0ada84d6a2e5f8891d75ef810ce2dffe497b6254ba48b0"
+    },
+    {
+      "path": "ai-assistant/agent_core/demo.py",
+      "sha256": "0e53b6b35f9d6b4ad37e7a1dd974141915c86e5796c841393b10b35688e6b391"
+    },
+    {
+      "path": "ai-assistant/agent_core/dispatcher.py",
+      "sha256": "e2e4e077f7c2f8635fe44388b1de80d07fba4b648b3649766013629d7cfce59e"
+    },
+    {
+      "path": "ai-assistant/agent_core/migration_preflight.py",
+      "sha256": "ee843c0695cd95b257c0f7a736d5d264a62f233f2782c2e89e820e122cc366e9"
+    },
+    {
+      "path": "ai-assistant/agent_core/migrations/V001__business_foundation.sql",
+      "sha256": "7073313c15258d43143accd775dfd4340566c7078acb42ad2e7dc2d296b06043"
+    },
+    {
+      "path": "ai-assistant/agent_core/model_port.py",
+      "sha256": "b7b29318975efce86c9f3855b730323e6b4182a6096d76aafdbab75efab012b8"
+    },
+    {
+      "path": "ai-assistant/agent_core/pricing.py",
+      "sha256": "df998b9cba4e422c2c475e7ea1ea70b6d01c55f597d55e54e1ef4fbdc761b575"
+    },
+    {
+      "path": "ai-assistant/agent_core/query_service.py",
+      "sha256": "779618137a1422db44c1c3bf46366e986003005ab014ba9d2c88d98a8cca95d1"
+    },
+    {
+      "path": "ai-assistant/agent_core/README.md",
+      "sha256": "c0229174ea2d26b1938f68126bac509f1852316d2ba28b665fcb0fa4489a14ca"
+    },
+    {
+      "path": "ai-assistant/agent_core/tests/test_auth.py",
+      "sha256": "ca0f10824b981caa2bcc2e7dee7a4e11cf10b72c5964204e30acf868c0a4be97"
+    },
+    {
+      "path": "ai-assistant/agent_core/tests/test_credentials.py",
+      "sha256": "d8f26a614b93b8321a21d4bc64c7db22c97c505cd02a8386b38e33977970b893"
+    },
+    {
+      "path": "ai-assistant/agent_core/tests/test_deepseek.py",
+      "sha256": "00ec56f2454d799abbdacbf9430006b28b8b06e76c31f3209c916f45a735ad13"
+    },
+    {
+      "path": "ai-assistant/agent_core/tests/test_demo.py",
+      "sha256": "841bbfdd92c220d89013a64f6150c8f8025478cdcfff1de1ecb821e2dcc083d6"
+    },
+    {
+      "path": "ai-assistant/agent_core/tests/test_domain.py",
+      "sha256": "2faae7c41ec16180b2bafe2418f366d254bfbfb2c4397a3729fc5cfc96d9ab54"
+    },
+    {
+      "path": "ai-assistant/agent_core/tests/test_migration_preflight.py",
+      "sha256": "5bc9f1e85b720f2d66d0901d3591a4c0291d3961c6565e527ca329ef39e2316c"
+    },
+    {
+      "path": "ai-assistant/agent_core/TOOL_CONTRACTS.md",
+      "sha256": "b40842c74ab086299775cec9fcaea213c9cea9b472d61cc79d39a98bde9c4886"
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/app.js",
+      "sha256": "f3634385c759cea3e6dbc72c197713190c3d3213c66fabe832f5aebad9dda173"
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/index.html",
+      "sha256": "01fe4d3973f4f4805f8ed78712526a220e2d65be172912344e4cc7f9b8f98b6c"
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/server.py",
+      "sha256": "e4e6f93389f27c6ae0787ecf7715f53314c660ad564ec651c2cc36c1ccf479b4"
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/styles.css",
+      "sha256": "1a83edbad5180924f0a8f6b2b116aecb33dad153b7c037fe02239030c783f87a"
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/tests/test_frontend.cjs",
+      "sha256": "993e6bb8277bdff2fe22ecc5532b90739ceecdfa3a416708390dc90a29723544"
+    },
+    {
+      "path": "ai-assistant/crm-dashboard/tests/test_server.py",
+      "sha256": "f9ee896a84de263a3fc7a5674fd3d50532e7995d444a88d66186f8ad4e3e22ce"
+    }
+  ],
+  "checks": [
+    {
+      "name": "agent_core_offline",
+      "command": "python -m unittest discover -s ai-assistant/agent_core/tests -q",
+      "passed": true,
+      "count": 98,
+      "recovery": "Initial sandbox WinError 5 on synthetic temporary directories; elevated rerun passed."
+    },
+    {
+      "name": "crm_regression",
+      "command": "python -m unittest discover -s ai-assistant/crm-dashboard/tests -q",
+      "passed": true,
+      "count": 44
+    },
+    {
+      "name": "frontend_behavior",
+      "command": "node --test ai-assistant/crm-dashboard/tests/test_frontend.cjs",
+      "passed": true,
+      "count": 5
+    },
+    {
+      "name": "python_compile",
+      "command": "python -m compileall -q ai-assistant/agent_core",
+      "passed": true
+    },
+    {
+      "name": "javascript_syntax",
+      "command": "node --check ai-assistant/crm-dashboard/app.js",
+      "passed": true
+    },
+    {
+      "name": "local_frontend_preservation",
+      "command": "git diff --exit-code 0535a15 -- ai-assistant/crm-dashboard/app.js ai-assistant/crm-dashboard/index.html ai-assistant/crm-dashboard/styles.css ai-assistant/crm-dashboard/tests/test_server.py",
+      "passed": true,
+      "normalization": "Git restored tracked files with CRLF; normalized content unchanged. Untracked frontend plan and tests remain byte-identical."
+    },
+    {
+      "name": "customer_data_preservation",
+      "passed": true,
+      "file_count": 181,
+      "comparison": "Sorted SHA256 digest of all local customer files and pipeline before/after integration; no contents recorded."
+    },
+    {
+      "name": "source_snapshot_stable",
+      "passed": true
+    },
+    {
+      "name": "git_conflicts_and_whitespace",
+      "command": "git ls-files -u; git diff --check",
+      "passed": true
+    }
+  ],
+  "total_tests": 147,
+  "autostash_backup": "0535a15",
+  "remote_push": false,
+  "live_model_calls": 0,
+  "customer_migration": false,
+  "awr": {
+    "status": "unavailable",
+    "command": "awr status --json",
+    "error_code": "CRM-AWR-001",
+    "error": "CommandNotFoundException: awr is not recognized",
+    "evidence_registered": false,
+    "session_claimed": false
+  },
+  "limitations": [
+    "New modules remain separate from existing Dashboard HTTP/UI.",
+    "No live DeepSeek invocation or database migration.",
+    "Existing frontend browser QA remains pending (CRM-A2A-002).",
+    "AWR not installed in this checkout; no phase completion or checkpoint was claimed."
+  ]
+}

@@ -65,6 +65,19 @@ class AuthenticationService:
     def _valid_id(value: str) -> bool:
         return isinstance(value, str) and 0 < len(value) <= 160 and value == value.strip() and not any(ord(c) < 32 for c in value)
 
+    def _store_session(self, digest: str, session: _Session, now: float) -> None:
+        """Called with the process lock held; default implementation is in-memory."""
+        self._sessions = {k: v for k, v in self._sessions.items() if now < v.expires_at}
+        if len(self._sessions) >= 10000:
+            raise DomainError("AUTH_RATE_LIMITED", "认证服务繁忙，请稍后重试", 429)
+        self._sessions[digest] = session
+
+    def _get_session(self, digest: str) -> Optional[_Session]:
+        return self._sessions.get(digest)
+
+    def _remove_session(self, digest: str) -> None:
+        self._sessions.pop(digest, None)
+
     def login(self, tenant_id: str, login_name: str, password: str, source_id: str) -> LoginResult:
         """错误统一返回，固定失败预算；source_id 必须由入口层可信地提供。"""
         if not all(self._valid_id(v) for v in (tenant_id, login_name, source_id)):
@@ -90,10 +103,7 @@ class AuthenticationService:
         session = _Session(tenant_id, staff.user_id, self._digest(csrf), staff.role, staff.auth_version, now + self._ttl)
         with self._lock:
             self._attempts.pop(key, None)
-            self._sessions = {k: v for k, v in self._sessions.items() if now < v.expires_at}
-            if len(self._sessions) >= 10000:
-                raise DomainError("AUTH_RATE_LIMITED", "认证服务繁忙，请稍后重试", 429)
-            self._sessions[self._digest(token)] = session
+            self._store_session(self._digest(token), session, now)
         return LoginResult(token, csrf, session.expires_at)
 
     def principal(self, token: str, *, csrf: str | None = None, require_csrf: bool = False) -> Principal:
@@ -102,9 +112,11 @@ class AuthenticationService:
             raise DomainError("AUTH_REQUIRED", "请先登录", 401)
         digest = self._digest(token)
         with self._lock:
-            session = self._sessions.get(digest)
-            if session is None or self._now() >= session.expires_at:
-                self._sessions.pop(digest, None)
+            session = self._get_session(digest)
+            if session is None:
+                raise DomainError("AUTH_REQUIRED", "请先登录", 401)
+            if self._now() >= session.expires_at:
+                self._remove_session(digest)
                 raise DomainError("AUTH_REQUIRED", "请先登录", 401)
         staff = self._by_id(session.tenant_id, session.user_id)
         if (staff is None or not staff.enabled or staff.tenant_id != session.tenant_id
@@ -121,4 +133,4 @@ class AuthenticationService:
         """撤销当前会话；无效票据不泄露账号状态。"""
         if isinstance(token, str) and re.fullmatch(r"[A-Za-z0-9_-]{16,256}", token) is not None:
             with self._lock:
-                self._sessions.pop(self._digest(token), None)
+                self._remove_session(self._digest(token))

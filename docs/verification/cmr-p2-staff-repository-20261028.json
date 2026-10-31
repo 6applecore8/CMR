@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "work_item": "CMR-P2-IDENTITY-DATA",
+  "scope": "partial isolated staff repository; mock DB-API only",
+  "verified_at": "2026-10-28T15:48:54.106+08:00",
+  "files": [
+    {
+      "path": "ai-assistant/agent_core/staff_repository.py",
+      "sha256": "b6a2cbceacff84197a6d4dbafbaff996aaf6aa32de803fe3bb35ecf9be258f41"
+    },
+    {
+      "path": "ai-assistant/agent_core/tests/test_staff_repository.py",
+      "sha256": "7afa456d72f740983233de0e7e8c379043bd01bb7200a906f7e872a54170d13c"
+    }
+  ],
+  "checks": [
+    {
+      "command": "python -m unittest discover -s ai-assistant/agent_core/tests -q",
+      "passed": true,
+      "count": 102
+    },
+    {
+      "command": "python -m unittest discover -s ai-assistant/crm-dashboard/tests -q",
+      "passed": true,
+      "count": 44
+    },
+    {
+      "command": "node --test ai-assistant/crm-dashboard/tests/test_frontend.cjs",
+      "passed": true,
+      "count": 5
+    },
+    {
+      "command": "python -m agent_core.migration_preflight --root ai-assistant",
+      "passed": true,
+      "result": "READABLE_REQUIRES_REVIEW; ownership unresolved; migrationAllowed false"
+    }
+  ],
+  "limits": [
+    "No live PostgreSQL, no application integration, no migration or paid model call",
+    "Docker socket startup error remains unresolved",
+    "AWR session checkpoint is progress only, not task completion"
+  ]
+}

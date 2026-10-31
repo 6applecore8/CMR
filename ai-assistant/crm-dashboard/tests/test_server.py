@@ -1351,7 +1351,7 @@ class HttpApiTests(unittest.TestCase):
         self.assertIn('bindContactParser(editContactParser, "#edit-contact-raw"', app_js)
         self.assertIn('window.setTimeout(() => $("#add-contact-raw").focus(), 0);', app_js)
         self.assertIn('window.setTimeout(() => $("#edit-contact-raw").focus(), 0);', app_js)
-        self.assertIn('const primaryLabel = "电话";', app_js)
+        self.assertIn('const primaryLabel = client.known_phone ? "电话" : client.known_email ? "邮箱" : "联系";', app_js)
         self.assertIn('const secondaryLabel = "地址";', app_js)
         self.assertIn("CONTACT_PASTE_PLACEHOLDER_ALI", app_js)
         self.assertIn("function fillAlibabaProductsFromContact", app_js)

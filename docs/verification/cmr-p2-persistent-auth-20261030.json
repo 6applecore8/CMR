@@ -1,0 +1,41 @@
+{
+  "verified_at": "2026-10-30T19:35:40.965895+08:00",
+  "work": "CMR-P2-IDENTITY-DATA",
+  "git_head": "9243ae6",
+  "dirty_worktree": true,
+  "source_sha256": "0dc83a90733b5ecf7a375c103c56dbd3841153b53f313b0a0fa7802330c77853",
+  "source_files_sha256": {
+    "ai-assistant/agent_core/auth.py": "ee2f43955a76caa7f287977fa540450e48ee9f2d5aae350d9c91aee235d446f2",
+    "ai-assistant/agent_core/persistent_auth.py": "219fa4105757f6c4393637f6997f5767029daf41046a0af9c5d9a7919a2bbf43",
+    "ai-assistant/agent_core/contracts.py": "ef464ac8af835f71670eb930c6e20aac15eb69c062c4142f5c055bf6a3df3d63",
+    "ai-assistant/agent_core/credentials.py": "cb355d5bd5fe93ef7c4e37dad59440b227724bd8056bbbe6d2cae8d1ca3f902f",
+    "ai-assistant/agent_core/staff_repository.py": "b6a2cbceacff84197a6d4dbafbaff996aaf6aa32de803fe3bb35ecf9be258f41",
+    "ai-assistant/agent_core/session_repository.py": "f88725029e3c0587f8adb023598b80c0219f24cf2bcc391bff414add57d27779",
+    "ai-assistant/agent_core/migrations/V001__business_foundation.sql": "7073313c15258d43143accd775dfd4340566c7078acb42ad2e7dc2d296b06043",
+    "ai-assistant/agent_core/migrations/V002__session_security.sql": "166917046169aa9ae747a28a793c640f85db0c266458cc426d71e7d2755aceb3",
+    "ai-assistant/agent_core/tests/test_auth.py": "ca0f10824b981caa2bcc2e7dee7a4e11cf10b72c5964204e30acf868c0a4be97",
+    "ai-assistant/agent_core/tests/test_postgres_staff_integration.py": "29f7331801d1751f68da4a4632850f8207e1f4ba09e9dd39b9e1a3ea008837bc",
+    "ai-assistant/agent_core/tests/test_postgres_schema_integration.py": "9d89fc3e1f09fb3cb3b7558b7d190da90a78d74c34d27549e1f7e38a33a5f152",
+    "ai-assistant/agent_core/tests/test_session_repository.py": "786f3b1459b56ca82c4f15ef7fc687894762df85efacc98442f615164fa3f034"
+  },
+  "checks": [
+    {
+      "command": "PYTHONPATH=ai-assistant python -m unittest discover -s ai-assistant/agent_core/tests -q",
+      "result": "109 passed, 2 skipped",
+      "scope": "offline tests with database opt-ins unset"
+    },
+    {
+      "command": "docker run --network container:cmr-p2-test-20261030 [read-only agent_core mount] langgenius/dify-api:1.16.1 python -m unittest agent_core.tests.test_postgres_staff_integration -v",
+      "result": "1 integration test passed",
+      "scope": "isolated PostgreSQL 15, restricted account; persistent auth across two instances, CSRF, logout, disabled user, tenant filter and session privileges"
+    }
+  ],
+  "limitations": [
+    "candidate persistent auth is not integrated with legacy HTTP",
+    "login rate limiting is process-local and persistent session count is not globally bounded",
+    "no concurrency, production account or HTTP security validation",
+    "no customer backup, ownership confirmation or migration"
+  ],
+  "customer_data_changed": false,
+  "test_container": "stopped; test roles, schemas and containers retained"
+}

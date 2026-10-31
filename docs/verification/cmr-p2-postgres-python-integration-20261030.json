@@ -1,0 +1,26 @@
+{
+  "verified_at": "2026-10-30T17:55:19.923323+08:00",
+  "work": "CMR-P2-IDENTITY-DATA",
+  "git_head": "9243ae6",
+  "dirty_worktree": true,
+  "source_sha256": "8713395505e640d8a78385cb833de37c26db55f8e8eb2a5ee55338037fb1d965",
+  "source_files_sha256": {
+    "ai-assistant/agent_core/tests/test_postgres_schema_integration.py": "9d89fc3e1f09fb3cb3b7558b7d190da90a78d74c34d27549e1f7e38a33a5f152",
+    "ai-assistant/agent_core/migrations/V001__business_foundation.sql": "7073313c15258d43143accd775dfd4340566c7078acb42ad2e7dc2d296b06043"
+  },
+  "command": "docker run --network container:cmr-p2-test-20261030 [read-only agent_core mount] langgenius/dify-api:1.16.1 python -m unittest agent_core.tests.test_postgres_schema_integration -v",
+  "scope": "isolated PostgreSQL 15 test database cmr_test_isolated; synthetic fixtures; transaction rollback; no external network",
+  "result": "4 passed including actual PostgreSQL integration",
+  "previous_report": "docs/verification/cmr-p2-postgres-test-preparation-20261030.json",
+  "limitations": [
+    "staff repository is not covered by the live database test",
+    "test DB uses privileged synthetic account, not restricted application role",
+    "session persistence, legacy HTTP authentication, concurrency and audit not implemented or validated",
+    "no customer migration, backup, or ownership confirmation"
+  ],
+  "retained_containers": [
+    "cmr-p2-test-20261030 (stopped)",
+    "cmr-p2-python-test-20261030 (exited)"
+  ],
+  "customer_data_changed": false
+}

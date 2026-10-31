@@ -44,7 +44,10 @@
     loading: false,
     page: 1,
     pageSize: 12,
+    searchIndex: new Map(),
   };
+  let searchTimer = null;
+  let searchComposing = false;
   const draftState = { activeId: null, baseline: "" };
   const checklistState = { date: "", store: {} };
 
@@ -469,6 +472,8 @@
 
   function setLoading(value) {
     state.loading = value;
+    $("#customer-workspace").setAttribute("aria-busy", String(value));
+    $("#refresh-btn").disabled = value;
     $("#loading-state").hidden = !value;
     if (value) $("#pagination").hidden = true;
     if (value) {
@@ -539,6 +544,33 @@
     });
     $("#export-alibaba-btn").hidden = state.activeChannel !== "alibaba";
     $("#add-client-btn").innerHTML = `<span aria-hidden="true">＋</span> 新增${state.activeChannel === "alibaba" ? "阿里" : "邮件"}客户`;
+    $("#customer-list-heading").textContent = state.activeChannel === "alibaba" ? "阿里客户" : "邮件客户";
+  }
+
+  // Rebuilt after data refresh; typing does not repeatedly serialize every product list.
+  function searchableText(client) {
+    return [
+      client.company, client.display_name, client.contact_name, client.country_region,
+      client.known_phone, client.known_email, client.address, client.product_interest,
+      client.product_raw, client.product_name, client.fragrance_requirement, client.product_application,
+      client.product_quantity, client.product_specification, client.target_price, client.other_requirements,
+      client.product_codes, client.product_names, JSON.stringify(client.product_items || []),
+      normalizeTags(client.custom_tags).join(" "), client.source, client.status,
+      statusLabel(client.status), client.next_action, client.notes, client.public_summary,
+    ].join(" ").toLocaleLowerCase();
+  }
+
+  function updateSearchControls() {
+    const hasSearch = $("#search-input").value.length > 0;
+    $("#clear-search-btn").hidden = !hasSearch;
+    $(".search-shortcut").hidden = hasSearch;
+  }
+
+  function renderFilterStatus(filters) {
+    const count = [filters.search, filters.status, filters.tier, filters.market, filters.source].filter(Boolean).length;
+    $("#filter-status").textContent = count ? `${count} 项筛选条件` : "全部客户";
+    $("#reset-filters").disabled = !count && filters.sort === "updated_desc";
+    updateSearchControls();
   }
 
   function currentFilters() {
@@ -554,6 +586,7 @@
 
   function applyFilters() {
     const filters = currentFilters();
+    renderFilterStatus(filters);
     const currentClients = boardClients();
     const filtered = currentClients.filter((client) => {
       if (filters.status && client.status !== filters.status) return false;
@@ -561,14 +594,7 @@
       if (filters.market && client.market_bucket !== filters.market) return false;
       if (filters.source && client.source !== filters.source) return false;
       if (filters.search) {
-        const haystack = [
-          client.company, client.display_name, client.contact_name, client.country_region, client.address, client.product_interest,
-          client.product_raw, client.product_name, client.fragrance_requirement, client.product_application,
-          client.product_quantity, client.product_specification, client.target_price, client.other_requirements,
-          client.product_codes, client.product_names, JSON.stringify(client.product_items || []),
-          client.custom_tags, normalizeTags(client.custom_tags).join(" "),
-          client.source, client.status, client.next_action, client.notes, client.public_summary,
-        ].join(" ").toLocaleLowerCase();
+        const haystack = state.searchIndex.get(client.client_id) ?? searchableText(client);
         if (!haystack.includes(filters.search)) return false;
       }
       return true;
@@ -577,6 +603,7 @@
       if (filters.sort === "score_desc") return (b.icp_score ?? -1) - (a.icp_score ?? -1);
       if (filters.sort === "score_asc") return (a.icp_score ?? 999) - (b.icp_score ?? 999);
       if (filters.sort === "company_asc") return text(a.company, a.client_id).localeCompare(text(b.company, b.client_id), "zh");
+      if (filters.sort === "contact_asc") return displayName(a).localeCompare(displayName(b), "zh");
       return text(b.updated_at, "").localeCompare(text(a.updated_at, ""));
     });
     const pagination = paginate(filtered, state.page, state.pageSize);
@@ -626,8 +653,8 @@
     $("#stat-pending").textContent = stats.pending ?? pending.length;
   }
 
-  function cardField(label, value) {
-    return `<div class="card-field"><span class="card-field-label">${escapeHtml(label)}</span><span class="card-field-value" title="${escapeHtml(text(value))}">${escapeHtml(text(value))}</span></div>`;
+  function cardField(label, value, className = "") {
+    return `<div class="card-field ${className}"><span class="card-field-label">${escapeHtml(label)}</span><span class="card-field-value" title="${escapeHtml(text(value))}">${escapeHtml(text(value))}</span></div>`;
   }
 
   function renderCards(clients) {
@@ -647,22 +674,25 @@
       const subtitle = text(client.company, "公司待补充");
       const next = text(client.next_action, "尚未设置下一步");
       const title = displayName(client);
-      const primaryLabel = "电话";
+      const primaryLabel = client.known_phone ? "电话" : client.known_email ? "邮箱" : "联系";
       const primaryValue = client.known_phone || client.known_email;
       const secondaryLabel = "地址";
       const secondaryValue = client.address || client.country_region;
-      const tertiary = client.product_interest || client.product_name || client.product_application || client.product_raw;
+      const tertiary = client.product_interest || client.product_name || client.product_names || client.product_application || client.product_raw;
+      const tags = renderTagChips(client.custom_tags, 3);
       return `<button class="client-card ${isAlibaba ? "channel-alibaba" : "channel-email"} tier-${escapeHtml(tier.toLowerCase())}" type="button" data-client-id="${escapeHtml(client.client_id)}" data-channel="${isAlibaba ? "alibaba" : "email"}" aria-label="查看 ${escapeHtml(title)} 详情">
         <div class="card-top">
           <div class="card-title"><h3 title="${escapeHtml(title)}">${escapeHtml(title)}</h3><p class="card-contact" title="${escapeHtml(subtitle)}">${escapeHtml(subtitle)}</p></div>
           <span class="tier-badge" title="ICP ${escapeHtml(tier)} 级">${escapeHtml(tier)}</span>
         </div>
         <div class="card-meta"><span class="status-chip" data-status="${escapeHtml(client.status || "")}">${escapeHtml(statusLabel(client.status || "未设置"))}</span><span class="score">${escapeHtml(String(score))}<span> / 100</span></span></div>
-        ${renderTagChips(client.custom_tags, 3) ? `<div class="card-tags" aria-label="自定义标签">${renderTagChips(client.custom_tags, 3)}</div>` : ""}
+        ${tags ? `<div class="card-tags" aria-label="自定义标签">${tags}</div>` : ""}
         <div class="card-divider"></div>
+        <div class="card-body">
         ${cardField(primaryLabel, primaryValue)}
         ${cardField(secondaryLabel, secondaryValue)}
-        ${cardField("产品", tertiary)}
+        ${cardField("产品", tertiary, "card-field-product")}
+        </div>
         <div class="card-action"><span class="card-action-label">下一步</span><span class="card-action-value" title="${escapeHtml(next)}">${escapeHtml(next)}</span></div>
         <div class="card-footer"><span class="card-source">来源 · ${escapeHtml(text(client.source))}</span><span>更新 · ${escapeHtml(dateLabel(client.updated_at))}</span></div>
       </button>`;
@@ -1299,11 +1329,13 @@
   }
 
   async function loadData({ showLoading = true } = {}) {
+    if (state.loading) return;
     if (showLoading) setLoading(true);
     $("#error-state").hidden = true;
     try {
       const body = await requestJSON("/api/clients");
       state.clients = Array.isArray(body.clients) ? body.clients : [];
+      state.searchIndex = new Map(state.clients.map((client) => [client.client_id, searchableText(client)]));
       state.filters = body.filters || state.filters;
       renderChannelTabs();
       populateFilterOptions();
@@ -1412,6 +1444,8 @@
   }
 
   function resetFilters() {
+    window.clearTimeout(searchTimer);
+    searchComposing = false;
     state.page = 1;
     $("#search-input").value = "";
     $("#status-filter").value = "";
@@ -1433,12 +1467,28 @@
   }
 
   function handleFilterChange() {
+    window.clearTimeout(searchTimer);
     state.page = 1;
     applyFilters();
   }
 
+  function scheduleSearch(event) {
+    updateSearchControls();
+    window.clearTimeout(searchTimer);
+    if (searchComposing || event?.isComposing) return;
+    searchTimer = window.setTimeout(handleFilterChange, 160);
+  }
+
   function bindEvents() {
-    ["#search-input", "#status-filter", "#tier-filter", "#market-filter", "#source-filter", "#sort-filter"].forEach((selector) => $(selector).addEventListener(selector === "#search-input" ? "input" : "change", handleFilterChange));
+    ["#status-filter", "#tier-filter", "#market-filter", "#source-filter", "#sort-filter"].forEach((selector) => $(selector).addEventListener("change", handleFilterChange));
+    $("#search-input").addEventListener("input", scheduleSearch);
+    $("#search-input").addEventListener("compositionstart", () => { searchComposing = true; window.clearTimeout(searchTimer); });
+    $("#search-input").addEventListener("compositionend", () => { searchComposing = false; scheduleSearch(); });
+    $("#clear-search-btn").addEventListener("click", () => {
+      $("#search-input").value = "";
+      handleFilterChange();
+      $("#search-input").focus();
+    });
     $("#reset-filters").addEventListener("click", resetFilters);
     $("#empty-reset-btn").addEventListener("click", resetFilters);
     $("#refresh-btn").addEventListener("click", () => loadData());
@@ -1492,6 +1542,13 @@
         renderStats({});
         applyFilters();
       });
+      $(`#channel-${channel}`).addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const target = event.key === "Home" ? "alibaba" : event.key === "End" ? "email" : channel === "alibaba" ? "email" : "alibaba";
+        $(`#channel-${target}`).click();
+        $(`#channel-${target}`).focus();
+      });
     });
     $("#add-client-btn").addEventListener("click", () => openAddDialog());
     $("#draft-box-btn").addEventListener("click", () => { renderDrafts(); openDialog($("#draft-dialog")); });
@@ -1533,7 +1590,7 @@
     $("#add-dialog").addEventListener("cancel", (event) => { event.preventDefault(); requestCloseAddDialog(); });
     $("#draft-confirm-dialog").addEventListener("cancel", (event) => { event.preventDefault(); closeDialog(event.currentTarget); });
     document.addEventListener("keydown", (event) => {
-      if (event.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName || "")) {
+      if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey && !document.querySelector("dialog[open]") && !document.activeElement?.isContentEditable && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName || "")) {
         event.preventDefault();
         $("#search-input").focus();
       }

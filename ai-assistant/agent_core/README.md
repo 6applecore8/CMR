@@ -19,6 +19,16 @@ python -m unittest discover -s ai-assistant/crm-dashboard/tests -v
 
 测试仅使用合成记录，不读取真实客户目录，不调用网络或付费模型。
 
+### 可选 PostgreSQL 结构验收
+
+`tests/test_postgres_schema_integration.py` 提供独立数据库的合成数据检查；默认跳过实际数据库部分。运行前需由操作者准备专用 PostgreSQL 测试数据库，数据库名必须符合 `cmr_test_*`，安装 psycopg 3，并在当前进程设置 `CMR_TEST_POSTGRES_DSN`。不要在日志或命令历史中记录连接密码。运行上述领域测试即可包含该检查。
+
+检查会在独立事务中创建随机名称的 schema，验证建表、组织间外键及角色约束，最后回滚；数据库名称不符合要求时在写入前报错。它需要创建 schema 的测试账号，不能代替受限业务账号、并发事务、员工仓储、接口鉴权或客户迁移的验收；运行成功也不表示阶段二完成。
+
+`tests/test_postgres_staff_integration.py` 是另一项单独的隔离集群测试：额外设置 `CMR_TEST_ALLOW_ROLE_CREATION=1` 后，使用管理员连接创建随机测试 schema、合成记录和受限登录角色并提交；这些测试对象有意保留，不会自动删除。受限角色无密码，测试必须运行在无网络的专用临时集群中，不得用于共享或生产环境。测试覆盖员工查询、角色权限、停用会话失效，以及候选会话仓储的保存、过期和撤销。
+
+`session_repository.py` 和 `V002__session_security.sql` 是候选实现，存放令牌及 CSRF 摘要而非明文。新增 `persistent_auth.py` 将会话仓储接入候选认证服务，隔离测试验证了跨实例恢复、CSRF、退出和员工停用；原有 `AuthenticationService` 默认仍为内存会话，两者都尚未接入旧 HTTP 服务。V002 对已有会话行不会自动转换，禁止直接应用到现有业务数据库。登录限流目前仍是进程内实现，并无跨进程共享限流和持久会话总量限制，不可作为生产方案。上线前仍须验证会话竞争、受限账号的部署权限、入口鉴权和 CSRF 保护。
+
 ## 安全与数据约定
 
 - Principal 必须由未来后端认证层创建；Python 对象不是认证机制。

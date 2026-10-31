@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#customer-workspace">跳到客户列表</a>
     <div class="app-shell">
       <header class="topbar">
         <div class="brand-block">
@@ -49,13 +50,13 @@
       <main>
         <section class="hero" aria-labelledby="page-heading">
           <div>
-            <p class="eyebrow eyebrow-amber">客户 · 线索 · 下一步</p>
-            <h2 id="page-heading">把每一次跟进，留在正确的下一步。</h2>
-            <p class="hero-copy">从 Markdown 客户档案、索引与 pipeline 汇总而来。资料只保存在本机，改动会同步回原有文件。</p>
+            <p class="eyebrow eyebrow-amber">客户管理 / 跟进工作台</p>
+            <h2 id="page-heading">客户跟进，一目了然。</h2>
+            <p class="hero-copy">整理客户需求，掌握沟通进展，让下一次联系更有准备。</p>
           </div>
           <div class="hero-note" aria-label="数据来源说明">
-            <span class="hero-note-icon" aria-hidden="true">✦</span>
-            <span><strong>本地数据源</strong><br />clients · leads/pipeline</span>
+            <span class="local-indicator" aria-hidden="true"></span>
+            <span><strong>本机保存</strong><br />客户资料留在本地</span>
           </div>
         </section>
 
@@ -63,7 +64,7 @@
           <article class="stat-card stat-card-main">
             <span class="stat-label">客户总数</span>
             <strong id="stat-total" class="stat-value">—</strong>
-            <span class="stat-hint">索引、pipeline 与档案合并</span>
+            <span class="stat-hint">当前客户板块</span>
           </article>
           <article class="stat-card">
             <span class="stat-label">A 级客户</span>
@@ -82,91 +83,66 @@
           </article>
         </section>
 
-        <section id="daily-checklist" class="checklist-panel" aria-labelledby="daily-checklist-title">
-          <div class="checklist-header">
-            <div>
-              <p class="eyebrow eyebrow-amber">今日安排</p>
-              <h2 id="daily-checklist-title">每日清单</h2>
-              <p class="checklist-intro">把今天要完成的跟进集中在这里，按日期分别保存。</p>
-            </div>
-            <div class="checklist-progress" aria-label="每日清单完成进度">
-              <strong id="checklist-progress-text" aria-live="polite">0 / 0 已完成 · 0%</strong>
-              <progress id="checklist-progress-bar" value="0" max="1" aria-label="每日清单完成进度">0%</progress>
-            </div>
+        <div class="workspace-layout">
+        <section id="customer-workspace" class="client-workspace" aria-labelledby="customer-list-heading" tabindex="-1">
+        <div class="results-heading">
+          <div>
+            <h2 id="customer-list-heading">邮件客户</h2>
+            <p id="result-count" role="status">正在读取客户…</p>
           </div>
-          <div class="checklist-toolbar">
-            <div class="checklist-date-nav" aria-label="选择清单日期">
-              <button id="checklist-prev-day" class="icon-button checklist-nav-button" type="button" aria-label="前一天" title="前一天">←</button>
-              <label class="checklist-date-field">
-                <span>日期</span>
-                <input id="checklist-date" type="date" aria-label="清单日期" />
-              </label>
-              <button id="checklist-next-day" class="icon-button checklist-nav-button" type="button" aria-label="后一天" title="后一天">→</button>
-              <button id="checklist-today" class="button button-quiet" type="button">回到今天</button>
-            </div>
-            <form id="checklist-form" class="checklist-add-form">
-              <label class="sr-only" for="checklist-input">新增每日任务</label>
-              <input id="checklist-input" name="task" type="text" maxlength="240" autocomplete="off" required placeholder="添加今天要完成的任务…" />
-              <button id="checklist-add" class="button button-primary" type="submit"><span aria-hidden="true">＋</span> 添加任务</button>
-            </form>
+          <div class="results-actions">
+            <a class="button button-quiet checklist-jump" href="#daily-checklist">每日清单</a>
+            <button id="refresh-btn" class="button button-quiet button-refresh" type="button" title="重新读取数据">
+              <span aria-hidden="true">↻</span> 刷新
+            </button>
           </div>
-          <ul id="checklist-list" class="checklist-list" aria-label="每日任务"></ul>
-          <p id="checklist-empty" class="checklist-empty">这一天还没有任务，先添加一个下一步吧。</p>
-        </section>
-
+        </div>
         <section class="toolbar" aria-label="客户筛选">
+          <div class="filter-heading"><span>搜索与筛选</span><span id="filter-status" class="filter-status">全部客户</span></div>
           <div class="search-wrap">
             <label class="sr-only" for="search-input">搜索客户</label>
             <span class="search-icon" aria-hidden="true">⌕</span>
-            <input id="search-input" type="search" autocomplete="off" placeholder="搜索公司、联系人、地区、产品兴趣…" />
+            <input id="search-input" type="search" autocomplete="off" placeholder="搜索姓名、公司、电话、产品或标签…" aria-controls="client-grid" />
+            <button id="clear-search-btn" class="search-clear" type="button" aria-label="清空搜索" hidden>×</button>
             <kbd class="search-shortcut" aria-hidden="true">/</kbd>
           </div>
           <div class="filter-row">
             <label class="select-wrap">
-              <span class="sr-only">状态</span>
+              <span class="filter-label">状态</span>
               <select id="status-filter" aria-label="按状态筛选">
                 <option value="">全部状态</option>
               </select>
             </label>
             <label class="select-wrap">
-              <span class="sr-only">等级</span>
+              <span class="filter-label">等级</span>
               <select id="tier-filter" aria-label="按等级筛选">
                 <option value="">全部等级</option>
               </select>
             </label>
             <label class="select-wrap">
-              <span class="sr-only">市场</span>
+              <span class="filter-label">市场</span>
               <select id="market-filter" aria-label="按市场筛选">
                 <option value="">全部市场</option>
               </select>
             </label>
             <label class="select-wrap">
-              <span class="sr-only">来源</span>
+              <span class="filter-label">来源</span>
               <select id="source-filter" aria-label="按来源筛选">
                 <option value="">全部来源</option>
               </select>
             </label>
             <label class="select-wrap sort-select">
-              <span class="sr-only">排序</span>
+              <span class="filter-label">排序</span>
               <select id="sort-filter" aria-label="客户排序">
                 <option value="updated_desc">最近更新</option>
                 <option value="score_desc">分数从高到低</option>
                 <option value="score_asc">分数从低到高</option>
                 <option value="company_asc">公司名称 A-Z</option>
+                <option value="contact_asc">客户姓名 A-Z</option>
               </select>
             </label>
             <button id="reset-filters" class="button button-quiet" type="button">重置筛选</button>
           </div>
-        </section>
-
-        <section class="results-heading" aria-live="polite">
-          <div>
-            <h2>客户列表</h2>
-            <p id="result-count">正在读取客户…</p>
-          </div>
-          <button id="refresh-btn" class="button button-quiet button-refresh" type="button" title="重新读取数据">
-            <span aria-hidden="true">↻</span> 刷新
-          </button>
         </section>
 
         <section id="loading-state" class="card-grid loading-grid" aria-label="正在加载" hidden>
@@ -208,11 +184,46 @@
             <button id="pagination-next" class="page-button page-boundary" type="button" aria-label="下一页">下一页</button>
           </div>
         </nav>
+        </section>
+
+        <aside id="daily-checklist" class="checklist-panel" aria-labelledby="daily-checklist-title" tabindex="-1">
+          <div class="checklist-header">
+            <div>
+              <p class="eyebrow eyebrow-amber">我的安排</p>
+              <h2 id="daily-checklist-title">每日清单</h2>
+              <p class="checklist-intro">把待办记下来，按日期逐项完成。</p>
+            </div>
+            <div class="checklist-progress" aria-label="每日清单完成进度">
+              <strong id="checklist-progress-text" aria-live="polite">0 / 0 已完成 · 0%</strong>
+              <progress id="checklist-progress-bar" value="0" max="1" aria-label="每日清单完成进度">0%</progress>
+            </div>
+          </div>
+          <div class="checklist-toolbar">
+            <div class="checklist-date-nav" aria-label="选择清单日期">
+              <button id="checklist-prev-day" class="icon-button checklist-nav-button" type="button" aria-label="前一天" title="前一天">←</button>
+              <label class="checklist-date-field">
+                <span>日期</span>
+                <input id="checklist-date" type="date" aria-label="清单日期" />
+              </label>
+              <button id="checklist-next-day" class="icon-button checklist-nav-button" type="button" aria-label="后一天" title="后一天">→</button>
+              <button id="checklist-today" class="button button-quiet" type="button">回到今天</button>
+            </div>
+            <form id="checklist-form" class="checklist-add-form">
+              <label class="sr-only" for="checklist-input">新增每日任务</label>
+              <input id="checklist-input" name="task" type="text" maxlength="240" autocomplete="off" required placeholder="添加一项待办…" />
+              <button id="checklist-add" class="button button-primary" type="submit"><span aria-hidden="true">＋</span> 添加</button>
+            </form>
+          </div>
+          <ul id="checklist-list" class="checklist-list" aria-label="每日任务"></ul>
+          <p id="checklist-empty" class="checklist-empty">这一天还没有任务，先添加一个下一步吧。</p>
+          <a class="checklist-back" href="#customer-workspace">返回客户列表</a>
+        </aside>
+        </div>
       </main>
 
       <footer class="footer">
-        <span>数据以 ai-assistant/clients 与 leads/pipeline.md 为准</span>
-        <span>仅本机可用 · UTF-8</span>
+        <span>SCENTEDLAND · 客户工作台</span>
+        <span>客户档案本机保存 · 草稿与清单保存在当前浏览器</span>
       </footer>
     </div>
 
