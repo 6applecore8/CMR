@@ -1,5 +1,11 @@
 # Trade Lead Assistant (CMR)
 
+## Resume Handoff
+
+For the current Agent-developer resume goal and cross-computer working instructions, see [Agent resume handoff](docs/AGENT_RESUME_HANDOFF.md). This public document contains no resume attachment, customer data, local Wiki content or secrets.
+
+The transferable [resume-writing Skill](skills/resume-writing/SKILL.md) provides evidence-based resume review and writing guidance. Resume Matcher and Reactive Resume are optional external tools, not included dependencies.
+
 ## Agent workbench upgrade status
 
 Current CRM business integration and synthetic demo status: see `docs/CMR_BUSINESS_INTEGRATION.md`. The existing dashboard is not authenticated; do not expose it to untrusted users.
